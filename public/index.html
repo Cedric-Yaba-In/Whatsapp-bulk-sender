@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Bulk Sender</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold text-center mb-8 text-green-600">WhatsApp Bulk Sender</h1>
+        
+        <!-- Stepper -->
+        <div class="mb-8">
+            <div class="flex items-center justify-center">
+                <div class="flex items-center space-x-4">
+                    <!-- Étape 1: Connexion -->
+                    <div class="flex items-center">
+                        <div id="step1-circle" class="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold">
+                            1
+                        </div>
+                        <span id="step1-text" class="ml-2 font-medium text-blue-600">Connexion</span>
+                    </div>
+                    
+                    <div id="line1" class="w-16 h-1 bg-gray-300"></div>
+                    
+                    <!-- Étape 2: Import -->
+                    <div class="flex items-center">
+                        <div id="step2-circle" class="w-10 h-10 rounded-full bg-gray-300 text-gray-600 flex items-center justify-center font-bold">
+                            2
+                        </div>
+                        <span id="step2-text" class="ml-2 font-medium text-gray-500">Import</span>
+                    </div>
+                    
+                    <div id="line2" class="w-16 h-1 bg-gray-300"></div>
+                    
+                    <!-- Étape 3: Message -->
+                    <div class="flex items-center">
+                        <div id="step3-circle" class="w-10 h-10 rounded-full bg-gray-300 text-gray-600 flex items-center justify-center font-bold">
+                            3
+                        </div>
+                        <span id="step3-text" class="ml-2 font-medium text-gray-500">Message</span>
+                    </div>
+                    
+                    <div id="line3" class="w-16 h-1 bg-gray-300"></div>
+                    
+                    <!-- Étape 4: Envoi -->
+                    <div class="flex items-center">
+                        <div id="step4-circle" class="w-10 h-10 rounded-full bg-gray-300 text-gray-600 flex items-center justify-center font-bold">
+                            4
+                        </div>
+                        <span id="step4-text" class="ml-2 font-medium text-gray-500">Envoi</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Page 1: Connexion WhatsApp -->
+        <div id="page-connection" class="page">
+            <div class="bg-white rounded-lg shadow-md p-8 max-w-2xl mx-auto">
+                <h2 class="text-2xl font-bold text-center mb-6">Connexion WhatsApp</h2>
+                
+                <div id="loading-section" class="text-center">
+                    <div class="bg-blue-50 p-6 rounded-lg mb-6">
+                        <div class="flex items-center justify-center mb-4">
+                            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-3"></div>
+                            <span class="text-lg font-semibold text-blue-800">Initialisation de WhatsApp...</span>
+                        </div>
+                        
+                        <!-- Barre de progression -->
+                        <div class="mb-4">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-sm font-medium text-blue-700">Progression</span>
+                                <span id="loading-progress" class="text-sm font-bold text-blue-800 bg-white px-2 py-1 rounded" style="min-width: 40px;">0%</span>
+                            </div>
+                            <div class="w-full bg-blue-200 rounded-full h-3 overflow-hidden">
+                                <div id="loading-progress-bar" class="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-500 shadow-sm" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        
+                        <p id="loading-message" class="text-blue-700 mb-4 font-medium">Préparation de la connexion en cours...</p>
+                        
+                        <div class="bg-white p-4 rounded border">
+                            <p class="text-sm text-gray-600">
+                                🔄 <strong>Que se passe-t-il ?</strong><br>
+                                • Chargement des composants WhatsApp<br>
+                                • Établissement de la connexion sécurisée<br>
+                                • Génération du QR code de connexion
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="qr-section" class="text-center hidden">
+                    <div class="bg-green-50 p-4 rounded-lg mb-4">
+                        <p class="text-green-800 font-semibold mb-2">✅ QR Code généré avec succès !</p>
+                        <p class="text-green-700">Scannez le code ci-dessous avec votre téléphone</p>
+                    </div>
+                    <div id="qr-code" class="flex justify-center mb-4 p-4 bg-white rounded-lg border-2 border-dashed border-gray-300"></div>
+                    <div class="bg-blue-50 p-4 rounded-lg">
+                        <p class="text-sm text-blue-700">
+                            📱 <strong>Instructions :</strong><br>
+                            1. Ouvrez WhatsApp sur votre téléphone<br>
+                            2. Allez dans Menu > Appareils connectés<br>
+                            3. Appuyez sur "Connecter un appareil"<br>
+                            4. Scannez le QR code ci-dessus
+                        </p>
+                    </div>
+                </div>
+                
+                <div id="connected-section" class="text-center hidden">
+                    <div class="bg-gradient-to-r from-green-100 to-green-50 border border-green-400 text-green-700 px-6 py-6 rounded-lg">
+                        <div class="flex items-center justify-center gap-3 mb-4">
+                            <div class="bg-green-500 rounded-full p-2">
+                                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                            </div>
+                            <span class="text-xl font-bold">WhatsApp connecté avec succès !</span>
+                        </div>
+                        <p class="text-green-600 mb-6">Votre compte est maintenant synchronisé et prêt à envoyer des messages.</p>
+                        <div class="flex gap-3 justify-center flex-wrap">
+                            <button onclick="forceReconnect()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded transition-colors">
+                                🔄 Resynchroniser
+                            </button>
+                            <button onclick="disconnect()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded transition-colors">
+                                🚪 Déconnecter
+                            </button>
+                            <button onclick="nextStep()" class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2 rounded font-semibold transition-colors">
+                                Commencer l'envoi →
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page 2: Import des contacts -->
+        <div id="page-import" class="page hidden">
+            <div class="bg-white rounded-lg shadow-md p-8 max-w-4xl mx-auto">
+                <div class="text-center mb-8">
+                    <h2 class="text-3xl font-bold text-gray-800 mb-2">Import des contacts</h2>
+                    <p class="text-gray-600">Importez votre liste de contacts depuis un fichier CSV, JSON ou Excel</p>
+                </div>
+                
+                <!-- Étapes visuelles -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div class="text-center p-4 bg-blue-50 rounded-lg border border-blue-200">
+                        <div class="bg-blue-500 rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-3">
+                            <span class="text-white font-bold text-lg">1</span>
+                        </div>
+                        <h3 class="font-semibold text-blue-800 mb-2">Téléchargez un template</h3>
+                        <p class="text-sm text-blue-600">Ou utilisez votre propre fichier</p>
+                    </div>
+                    <div class="text-center p-4 bg-green-50 rounded-lg border border-green-200">
+                        <div class="bg-green-500 rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-3">
+                            <span class="text-white font-bold text-lg">2</span>
+                        </div>
+                        <h3 class="font-semibold text-green-800 mb-2">Glissez votre fichier</h3>
+                        <p class="text-sm text-green-600">Ou cliquez pour sélectionner</p>
+                    </div>
+                    <div class="text-center p-4 bg-purple-50 rounded-lg border border-purple-200">
+                        <div class="bg-purple-500 rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-3">
+                            <span class="text-white font-bold text-lg">3</span>
+                        </div>
+                        <h3 class="font-semibold text-purple-800 mb-2">Vérifiez et continuez</h3>
+                        <p class="text-sm text-purple-600">Passez à la rédaction</p>
+                    </div>
+                </div>
+                
+                <!-- Templates téléchargeables -->
+                <div class="mb-8 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl">
+                    <div class="flex items-center mb-4">
+                        <div class="bg-blue-500 rounded-full p-2 mr-3">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-bold text-blue-800">Télécharger un template</h3>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <button onclick="downloadTemplate('csv')" class="bg-white hover:bg-blue-50 border border-blue-300 text-blue-700 px-4 py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            Template CSV
+                        </button>
+                        <button onclick="downloadTemplate('json')" class="bg-white hover:bg-blue-50 border border-blue-300 text-blue-700 px-4 py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+                            </svg>
+                            Template JSON
+                        </button>
+                        <button onclick="downloadTemplate('excel')" class="bg-white hover:bg-blue-50 border border-blue-300 text-blue-700 px-4 py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a4 4 0 01-4-4V7a4 4 0 014-4h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a4 4 0 01-4 4z"></path>
+                            </svg>
+                            Template Excel
+                        </button>
+                    </div>
+                    
+                    <div class="bg-white rounded-lg p-4 border border-blue-200">
+                        <h4 class="font-semibold text-blue-800 mb-3">Structure requise dans votre fichier :</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                            <div class="bg-blue-50 p-3 rounded border">
+                                <p class="font-medium text-blue-800 mb-1">CSV :</p>
+                                <code class="text-blue-700">name,phone<br>John,+33123456789</code>
+                            </div>
+                            <div class="bg-blue-50 p-3 rounded border">
+                                <p class="font-medium text-blue-800 mb-1">JSON :</p>
+                                <code class="text-blue-700">[{"name":"John",<br>"phone":"+33123456789"}]</code>
+                            </div>
+                            <div class="bg-blue-50 p-3 rounded border">
+                                <p class="font-medium text-blue-800 mb-1">Excel :</p>
+                                <code class="text-blue-700">Colonnes :<br>'name' et 'phone'</code>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Zone de drop améliorée -->
+                <div class="mb-8">
+                    <div id="drop-zone" class="border-3 border-dashed border-gray-300 rounded-xl p-12 text-center bg-gray-50 hover:bg-gray-100 hover:border-green-400 transition-all duration-300 cursor-pointer">
+                        <input type="file" id="file-input" accept=".csv,.json,.xlsx,.xls" class="hidden">
+                        
+                        <div id="drop-content">
+                            <svg class="mx-auto h-16 w-16 text-gray-400 mb-4" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            <h3 class="text-xl font-semibold text-gray-700 mb-2">Glissez votre fichier ici</h3>
+                            <p class="text-gray-500 mb-4">ou cliquez pour sélectionner un fichier</p>
+                            <div class="inline-flex items-center px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold transition-colors">
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                                </svg>
+                                Choisir un fichier
+                            </div>
+                            <p class="text-sm text-gray-400 mt-3">Formats acceptés: CSV, JSON, Excel (.xlsx, .xls) - Max 10MB</p>
+                        </div>
+                        
+                        <div id="file-selected" class="hidden">
+                            <svg class="mx-auto h-16 w-16 text-green-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <h3 class="text-xl font-semibold text-green-700 mb-2">Fichier sélectionné</h3>
+                            <p id="selected-file-name" class="text-green-600 font-medium mb-4"></p>
+                            <button id="upload-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-8 rounded-lg text-lg shadow-lg transform hover:scale-105 transition-all duration-200">
+                                📤 Importer les contacts
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Section des contacts importés -->
+                <div id="contacts-section" class="hidden">
+                    <div class="bg-green-50 border border-green-200 rounded-xl p-6">
+                        <div class="flex items-center justify-center mb-4">
+                            <div class="bg-green-500 rounded-full p-2 mr-3">
+                                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                </svg>
+                            </div>
+                            <h3 class="text-2xl font-bold text-green-800">Contacts importés avec succès !</h3>
+                        </div>
+                        
+                        <div class="text-center mb-6">
+                            <div class="text-4xl font-bold text-green-600 mb-1" id="contact-count">0</div>
+                            <div class="text-green-700 font-medium">contacts prêts pour l'envoi</div>
+                        </div>
+                        
+                        <div id="contacts-list" class="max-h-80 overflow-y-auto bg-white rounded-lg border border-green-200 p-4 mb-6"></div>
+                        
+                        <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                            <button onclick="resetImport()" class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold transition-colors flex items-center gap-2">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                                </svg>
+                                Importer un autre fichier
+                            </button>
+                            
+                            <button onclick="nextStep()" class="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-8 py-3 rounded-lg font-semibold shadow-lg transform hover:scale-105 transition-all duration-200 flex items-center gap-2">
+                                Continuer → Rédiger le message
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Bouton retour en bas -->
+                <div class="mt-8 text-center">
+                    <button onclick="prevStep()" class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold transition-colors flex items-center gap-2 mx-auto">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                        </svg>
+                        Retour à la connexion
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page 3: Rédaction du message -->
+        <div id="page-message" class="page hidden">
+            <div class="bg-white rounded-lg shadow-md p-8 max-w-3xl mx-auto">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold">Rédaction du message</h2>
+                    <button onclick="prevStep()" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded">
+                        ← Retour
+                    </button>
+                </div>
+                
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Votre message</label>
+                    <textarea id="message-input" rows="6" 
+                              class="w-full p-4 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="Tapez votre message ici...\n\nUtilisez {{name}} pour personnaliser avec le nom du contact"></textarea>
+                    <div class="mt-2 flex items-center gap-2">
+                        <span class="text-sm text-gray-500">💡 Astuce: Utilisez</span>
+                        <code class="bg-gray-100 px-2 py-1 rounded text-sm">{{name}}</code>
+                        <span class="text-sm text-gray-500">pour insérer le nom du contact</span>
+                    </div>
+                </div>
+                
+                <!-- Pièce jointe -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Pièce jointe (optionnel)</label>
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                        <input type="file" id="attachment-input" accept="image/*,.pdf,.doc,.docx,.txt" class="hidden">
+                        <div id="attachment-drop-zone" class="cursor-pointer">
+                            <div id="attachment-placeholder">
+                                <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                </svg>
+                                <p class="mt-2 text-sm text-gray-600">Cliquez pour sélectionner un fichier</p>
+                                <p class="text-xs text-gray-500">Images, PDF, Documents (max 10MB)</p>
+                            </div>
+                            <div id="attachment-preview" class="hidden">
+                                <div id="preview-content"></div>
+                                <button type="button" onclick="removeAttachment()" class="mt-2 text-red-600 hover:text-red-800 text-sm">
+                                    ❌ Supprimer
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-blue-50 p-4 rounded-lg mb-6">
+                    <h4 class="font-medium text-blue-800 mb-2">Aperçu du message :</h4>
+                    <div id="message-preview" class="bg-white p-3 rounded border text-sm">
+                        Tapez votre message pour voir l'aperçu...
+                    </div>
+                </div>
+                
+                <div class="text-center">
+                    <button id="continue-to-send" onclick="nextStep()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded font-semibold" disabled>
+                        Continuer → Envoyer les messages
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page 4: Envoi des messages -->
+        <div id="page-send" class="page hidden">
+            <div class="bg-white rounded-lg shadow-md p-8 max-w-4xl mx-auto">
+                <div class="text-center mb-8">
+                    <h2 class="text-3xl font-bold text-gray-800 mb-2">Confirmation d'envoi</h2>
+                    <p class="text-gray-600">Vérifiez les détails avant de lancer l'envoi en masse</p>
+                </div>
+                
+                <!-- Récapitulatif avec design amélioré -->
+                <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6 mb-8">
+                    <div class="flex items-center justify-center mb-4">
+                        <div class="bg-blue-500 rounded-full p-2 mr-3">
+                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-bold text-blue-800">Récapitulatif de votre envoi</h3>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="bg-white rounded-lg p-4 text-center shadow-sm border border-blue-100">
+                            <div class="text-3xl font-bold text-blue-600 mb-1" id="total-contacts">0</div>
+                            <div class="text-sm font-medium text-blue-700">Contacts à contacter</div>
+                        </div>
+                        <div class="bg-white rounded-lg p-4 text-center shadow-sm border border-green-100">
+                            <div class="text-3xl font-bold text-green-600 mb-1" id="message-length">0</div>
+                            <div class="text-sm font-medium text-green-700">Caractères du message</div>
+                        </div>
+                        <div class="bg-white rounded-lg p-4 text-center shadow-sm border border-purple-100">
+                            <div class="text-3xl font-bold text-purple-600 mb-1">~<span id="estimated-time">0</span>min</div>
+                            <div class="text-sm font-medium text-purple-700">Durée estimée</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Actions centralisées -->
+                <div class="bg-gray-50 rounded-xl p-6 mb-8">
+                    <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                        <button onclick="prevStep()" class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold transition-colors flex items-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                            </svg>
+                            Modifier le message
+                        </button>
+                        
+                        <div class="flex-1 max-w-xs">
+                            <button id="send-btn" class="w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold py-4 px-8 rounded-lg text-lg shadow-lg transform hover:scale-105 transition-all duration-200 flex items-center justify-center gap-3">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                                </svg>
+                                Lancer l'envoi
+                            </button>
+                        </div>
+                        
+                        <button onclick="resetApp()" class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold transition-colors flex items-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                            </svg>
+                            Recommencer
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Avertissement -->
+                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-8">
+                    <div class="flex items-start">
+                        <svg class="w-5 h-5 text-yellow-600 mt-0.5 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                        </svg>
+                        <div>
+                            <h4 class="font-medium text-yellow-800 mb-1">Important à savoir</h4>
+                            <ul class="text-sm text-yellow-700 space-y-1">
+                                <li>• L'envoi se fait avec un délai de 3 secondes entre chaque message</li>
+                                <li>• Assurez-vous que votre connexion WhatsApp reste stable</li>
+                                <li>• Les numéros non enregistrés sur WhatsApp seront ignorés</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Progression d'envoi -->
+                <div id="sending-progress" class="hidden mb-8">
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                        <div class="flex items-center justify-center mb-4">
+                            <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-3"></div>
+                            <span class="text-lg font-semibold text-blue-800">Envoi en cours...</span>
+                        </div>
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-sm font-medium text-blue-700">Progression</span>
+                            <span id="progress-text" class="text-sm font-bold text-blue-800">0/0</span>
+                        </div>
+                        <div class="w-full bg-blue-200 rounded-full h-4 overflow-hidden">
+                            <div id="progress-bar" class="bg-gradient-to-r from-blue-500 to-blue-600 h-4 rounded-full transition-all duration-300 shadow-sm" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Résultats -->
+                <div id="results-section" class="hidden">
+                    <div class="bg-white border rounded-xl p-6">
+                        <div class="text-center mb-6">
+                            <h3 class="text-2xl font-bold text-gray-800 mb-2">Résultats de l'envoi</h3>
+                            <p class="text-gray-600">Voici le détail des messages envoyés</p>
+                        </div>
+                        
+                        <div id="results-summary" class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                            <div class="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
+                                <div class="text-4xl font-bold text-green-600 mb-2" id="success-count">0</div>
+                                <div class="text-green-700 font-medium">Messages envoyés</div>
+                                <div class="text-sm text-green-600 mt-1">avec succès</div>
+                            </div>
+                            <div class="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+                                <div class="text-4xl font-bold text-red-600 mb-2" id="error-count">0</div>
+                                <div class="text-red-700 font-medium">Échecs d'envoi</div>
+                                <div class="text-sm text-red-600 mt-1">à vérifier</div>
+                            </div>
+                        </div>
+                        
+                        <div id="results-list" class="max-h-80 overflow-y-auto border rounded-lg"></div>
+                        
+                        <div class="mt-8 text-center">
+                            <button onclick="resetApp()" class="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-8 py-3 rounded-lg font-semibold shadow-lg transform hover:scale-105 transition-all duration-200 flex items-center justify-center gap-2 mx-auto">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                                </svg>
+                                Nouvel envoi
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .page {
+            display: none;
+        }
+        .page.active {
+            display: block;
+        }
+    </style>
+
+    <script src="app.js"></script>
+</body>
+</html>
