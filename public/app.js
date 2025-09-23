@@ -3,9 +3,10 @@ let isConnected = false;
 let syncToast = null;
 let lastConnectionCheck = 0;
 let currentProgress = 0;
-let currentStep = 1;
+let currentStep = 0; // Commencer par la page de connexion utilisateur
 let sendingInProgress = false;
 let attachmentFile = null;
+let currentUser = null;
 
 // Configuration Toastr
 toastr.options = {
@@ -181,8 +182,8 @@ const showPage = (pageNumber) => {
 };
 
 const getPageName = (step) => {
-  const pages = ['connection', 'import', 'message', 'send'];
-  return pages[step - 1];
+  const pages = ['user-login', 'connection', 'import', 'message', 'send'];
+  return pages[step];
 };
 
 const nextStep = () => {
@@ -699,6 +700,7 @@ sendBtn.addEventListener('click', async () => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ 
+        userCode: currentUser?.code,
         contacts, 
         message,
         attachment: attachmentFile 
@@ -824,13 +826,51 @@ messageInput.addEventListener('input', () => {
   updateMessagePreview();
 });
 
+// Gestion de la connexion utilisateur
+document.getElementById('user-login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  
+  const userCode = document.getElementById('user-code').value.trim().toUpperCase();
+  
+  if (!userCode) {
+    toastr.warning('Veuillez entrer votre code utilisateur');
+    return;
+  }
+  
+  try {
+    const response = await fetch('/api/verify-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userCode })
+    });
+    
+    const data = await response.json();
+    
+    if (data.valid) {
+      currentUser = { code: userCode, ...data.user };
+      
+      // Afficher les infos utilisateur
+      document.getElementById('user-name').textContent = data.user.name;
+      document.getElementById('user-pack').textContent = data.user.pack;
+      document.getElementById('remaining-messages').textContent = data.user.remainingMessages;
+      
+      document.getElementById('user-info').classList.remove('hidden');
+      document.getElementById('user-login-form').classList.add('hidden');
+      
+      toastr.success(`Bienvenue ${data.user.name} !`);
+    } else {
+      toastr.error(data.message || 'Code utilisateur invalide');
+    }
+  } catch (error) {
+    toastr.error('Erreur lors de la vérification du code');
+  }
+});
+
 // Initialisation
 restoreData();
 
-// Ne pas forcer la page 1 si on a des données restaurées
-if (!getConnectionState() && (!contacts || contacts.length === 0)) {
-  showPage(1); // Commencer par la page de connexion seulement si rien n'est restauré
-}
+// Commencer par la page de connexion utilisateur
+showPage(0);
 
 updateMessagePreview();
 

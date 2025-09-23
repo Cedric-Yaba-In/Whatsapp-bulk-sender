@@ -7,6 +7,16 @@ const XLSX = require('xlsx');
 const { parse } = require('json2csv');
 const fs = require('fs');
 const path = require('path');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const session = require('express-session');
+const connectDB = require('./config/database');
+const User = require('./models/User');
+const Pack = require('./models/Pack');
+const Usage = require('./models/Usage');
+
+// Connexion à MongoDB
+connectDB();
 
 const app = express();
 const upload = multer({ 
@@ -43,6 +53,12 @@ const upload = multer({
 
 app.use(express.static('public'));
 app.use(express.json());
+app.use(session({
+  secret: 'whatsapp-bulk-secret-key',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 }
+}));
 
 // Middleware pour logger toutes les requêtes
 app.use((req, res, next) => {
@@ -261,11 +277,276 @@ app.get('/api/template/:format', (req, res) => {
   }
 });
 
-app.post('/api/send-messages', async (req, res) => {
+// Middleware d'authentification utilisateur
+const authenticateUser = async (req, res, next) => {
+  const { userCode } = req.body;
+  
+  if (!userCode) {
+    return res.status(401).json({ error: 'Code utilisateur requis' });
+  }
+  
+  try {
+    const user = await User.findOne({ code: userCode.toUpperCase(), isActive: true }).populate('packId');
+    
+    if (!user) {
+      return res.status(401).json({ error: 'Code utilisateur invalide ou inactif' });
+    }
+    
+    // Vérifier et réinitialiser les messages quotidiens si nécessaire
+    const today = new Date();
+    const lastReset = new Date(user.lastResetDate);
+    
+    if (today.toDateString() !== lastReset.toDateString()) {
+      user.messagesUsedToday = 0;
+      user.lastResetDate = today;
+      await user.save();
+    }
+    
+    req.user = user;
+    next();
+  } catch (error) {
+    res.status(500).json({ error: 'Erreur d\'authentification' });
+  }
+};
+
+// Middleware d'authentification admin
+const authenticateAdmin = (req, res, next) => {
+  const { username, password } = req.body;
+  
+  if (username === 'admin' && password === 'admin123') {
+    req.session.isAdmin = true;
+    next();
+  } else {
+    res.status(401).json({ success: false, message: 'Identifiants incorrects' });
+  }
+};
+
+const requireAdmin = (req, res, next) => {
+  if (req.session.isAdmin) {
+    next();
+  } else {
+    res.status(401).json({ error: 'Accès non autorisé' });
+  }
+};
+
+// Routes Admin
+app.post('/api/admin/login', authenticateAdmin, (req, res) => {
+  res.json({ success: true });
+});
+
+app.get('/api/admin/stats', requireAdmin, async (req, res) => {
+  try {
+    const totalUsers = await User.countDocuments();
+    const activeUsers = await User.countDocuments({ isActive: true });
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const messagesToday = await Usage.aggregate([
+      { $match: { date: { $gte: today } } },
+      { $group: { _id: null, total: { $sum: '$messagesSent' } } }
+    ]);
+    
+    const messagesTotal = await Usage.aggregate([
+      { $group: { _id: null, total: { $sum: '$messagesSent' } } }
+    ]);
+    
+    res.json({
+      totalUsers,
+      activeUsers,
+      messagesToday: messagesToday[0]?.total || 0,
+      messagesTotal: messagesTotal[0]?.total || 0
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Erreur lors du chargement des statistiques' });
+  }
+});
+
+app.get('/api/admin/users', requireAdmin, async (req, res) => {
+  try {
+    const users = await User.find().populate('packId').sort({ createdAt: -1 });
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ error: 'Erreur lors du chargement des utilisateurs' });
+  }
+});
+
+app.post('/api/admin/users', requireAdmin, async (req, res) => {
+  try {
+    const { name, email, packId } = req.body;
+    
+    // Générer un code unique
+    let code;
+    let isUnique = false;
+    
+    while (!isUnique) {
+      code = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const existingUser = await User.findOne({ code });
+      if (!existingUser) isUnique = true;
+    }
+    
+    const user = new User({ name, email, packId, code });
+    await user.save();
+    
+    res.json({ success: true, user });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Erreur lors de la création' });
+  }
+});
+
+app.put('/api/admin/users/:id/toggle', requireAdmin, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    user.isActive = !user.isActive;
+    await user.save();
+    
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Erreur lors de la modification' });
+  }
+});
+
+app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
+  try {
+    await User.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Erreur lors de la suppression' });
+  }
+});
+
+app.get('/api/admin/packs', requireAdmin, async (req, res) => {
+  try {
+    const packs = await Pack.find().sort({ createdAt: -1 });
+    res.json(packs);
+  } catch (error) {
+    res.status(500).json({ error: 'Erreur lors du chargement des packs' });
+  }
+});
+
+app.post('/api/admin/packs', requireAdmin, async (req, res) => {
+  try {
+    const pack = new Pack(req.body);
+    await pack.save();
+    
+    res.json({ success: true, pack });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Erreur lors de la création' });
+  }
+});
+
+app.put('/api/admin/packs/:id/toggle', requireAdmin, async (req, res) => {
+  try {
+    const pack = await Pack.findById(req.params.id);
+    pack.isActive = !pack.isActive;
+    await pack.save();
+    
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Erreur lors de la modification' });
+  }
+});
+
+app.delete('/api/admin/packs/:id', requireAdmin, async (req, res) => {
+  try {
+    await Pack.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Erreur lors de la suppression' });
+  }
+});
+
+// Route publique pour les packs
+app.get('/api/packs', async (req, res) => {
+  try {
+    const packs = await Pack.find({ isActive: true }).sort({ dailyLimit: 1 });
+    res.json(packs);
+  } catch (error) {
+    res.status(500).json({ error: 'Erreur lors du chargement des packs' });
+  }
+});
+
+// Route pour créer un utilisateur Gratuit automatiquement
+app.post('/api/create-free-user', async (req, res) => {
+  try {
+    const { name, packId } = req.body;
+    
+    // Générer un code unique
+    let code;
+    let isUnique = false;
+    
+    while (!isUnique) {
+      code = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const existingUser = await User.findOne({ code });
+      if (!existingUser) isUnique = true;
+    }
+    
+    // Créer l'utilisateur avec un email temporaire
+    const user = new User({ 
+      name, 
+      email: `${code.toLowerCase()}@free.temp`, 
+      packId, 
+      code 
+    });
+    await user.save();
+    
+    res.json({ success: true, user: { code, name } });
+  } catch (error) {
+    console.error('Erreur création utilisateur Gratuit:', error);
+    res.status(500).json({ success: false, message: 'Erreur lors de la création du compte' });
+  }
+});
+
+// Route pour vérifier un code utilisateur
+app.post('/api/verify-user', async (req, res) => {
+  const { userCode } = req.body;
+  
+  try {
+    const user = await User.findOne({ code: userCode.toUpperCase(), isActive: true }).populate('packId');
+    
+    if (!user) {
+      return res.json({ valid: false, message: 'Code utilisateur invalide ou inactif' });
+    }
+    
+    // Vérifier et réinitialiser les messages quotidiens si nécessaire
+    const today = new Date();
+    const lastReset = new Date(user.lastResetDate);
+    
+    if (today.toDateString() !== lastReset.toDateString()) {
+      user.messagesUsedToday = 0;
+      user.lastResetDate = today;
+      await user.save();
+    }
+    
+    res.json({
+      valid: true,
+      user: {
+        name: user.name,
+        pack: user.packId.name,
+        dailyLimit: user.packId.dailyLimit,
+        messagesUsedToday: user.messagesUsedToday,
+        remainingMessages: user.packId.dailyLimit - user.messagesUsedToday
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ valid: false, message: 'Erreur lors de la vérification' });
+  }
+});
+
+app.post('/api/send-messages', authenticateUser, async (req, res) => {
   const { contacts, message, attachment } = req.body;
   
   if (!isReady || !client) {
     return res.status(400).json({ error: 'WhatsApp non connecté. Veuillez vous reconnecter.' });
+  }
+  
+  // Vérifier la limite quotidienne
+  const remainingMessages = req.user.packId.dailyLimit - req.user.messagesUsedToday;
+  
+  if (contacts.length > remainingMessages) {
+    return res.status(400).json({ 
+      error: `Limite quotidienne dépassée. Vous pouvez envoyer ${remainingMessages} messages aujourd'hui.` 
+    });
   }
 
   const results = [];
@@ -369,6 +650,27 @@ app.post('/api/send-messages', async (req, res) => {
     await new Promise(resolve => setTimeout(resolve, 3000));
   }
   
+  // Enregistrer les statistiques d'utilisation
+  const successfulSends = results.filter(r => r.status === 'sent').length;
+  
+  if (successfulSends > 0) {
+    // Mettre à jour le compteur de l'utilisateur
+    req.user.messagesUsedToday += successfulSends;
+    await req.user.save();
+    
+    // Enregistrer dans les statistiques
+    const usage = new Usage({
+      userId: req.user._id,
+      messagesSent: successfulSends,
+      contacts: results.map(r => ({
+        name: r.contact,
+        phone: r.phone,
+        status: r.status
+      }))
+    });
+    await usage.save();
+  }
+  
   res.json({ results });
 });
 
@@ -387,7 +689,62 @@ app.post('/api/disconnect', (req, res) => {
   }
 });
 
+// Initialiser les packs par défaut
+const initDefaultPacks = async () => {
+  try {
+    const packCount = await Pack.countDocuments();
+    
+    if (packCount === 0) {
+      const defaultPacks = [
+        {
+          name: 'Test',
+          description: 'Compte de test par défaut',
+          dailyLimit: 5,
+          price: 0
+        },
+        {
+          name: 'Gratuit',
+          description: 'Pack gratuit pour découvrir l\'application',
+          dailyLimit: 10,
+          price: 0
+        },
+        {
+          name: 'Starter',
+          description: 'Pack idéal pour débuter avec l\'envoi de messages WhatsApp',
+          dailyLimit: 50,
+          price: 19.99
+        },
+        {
+          name: 'Entreprise',
+          description: 'Pour les entreprises avec besoins importants',
+          dailyLimit: 100,
+          price: 49.99
+        }
+      ];
+      
+      const createdPacks = await Pack.insertMany(defaultPacks);
+      console.log('Packs par défaut créés');
+      
+      // Créer le compte de test par défaut
+      const testPack = createdPacks.find(p => p.name === 'Test');
+      if (testPack) {
+        const testUser = new User({
+          name: 'Compte Test',
+          email: 'test@demo.com',
+          code: 'TEST01',
+          packId: testPack._id
+        });
+        await testUser.save();
+        console.log('Compte de test créé avec le code: TEST01');
+      }
+    }
+  } catch (error) {
+    console.error('Erreur lors de la création des packs par défaut:', error);
+  }
+};
+
 initWhatsApp();
+initDefaultPacks();
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
@@ -400,4 +757,6 @@ app.listen(PORT, () => {
   console.log('- POST /api/upload-attachment');
   console.log('- POST /api/send-messages');
   console.log('- GET /api/template/:format');
+  console.log('- GET /admin.html (admin: admin/admin123)');
+  console.log('- GET /packs.html (page publique des packs)');
 });
