@@ -17,6 +17,13 @@ const packSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
+  isFree: {
+    type: Boolean,
+    default: false
+  },
+  contactInfo: {
+    type: String
+  },
   isActive: {
     type: Boolean,
     default: true

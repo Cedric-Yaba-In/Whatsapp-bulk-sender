@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %> - WhatsApp Bulk Sender</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+</head>
+<body>
+    <div class="min-h-screen bg-gray-100">
+        <!-- Modal de connexion -->
+        <div id="login-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-lg p-8 w-full max-w-md mx-4">
+                <h2 class="text-2xl font-bold text-center mb-6">Administration</h2>
+                <form id="login-form">
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Nom d'utilisateur</label>
+                        <input type="text" id="username" value="admin" required class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    </div>
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Mot de passe</label>
+                        <input type="password" id="password" value="admin123" required class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+                    </div>
+                    <button type="submit" class="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700">
+                        Se connecter
+                    </button>
+                </form>
+                <p class="text-sm text-gray-500 mt-4 text-center">admin / admin123</p>
+            </div>
+        </div>
+
+        <!-- Dashboard -->
+        <div id="admin-dashboard" class="hidden">
+            <nav class="bg-white shadow-sm border-b">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div class="flex justify-between h-16">
+                        <div class="flex items-center">
+                            <h1 class="text-xl font-semibold">Administration WhatsApp Bulk</h1>
+                        </div>
+                        <div class="flex items-center">
+                            <button onclick="logout()" class="text-gray-500 hover:text-gray-700">
+                                Déconnexion
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+
+            <div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+                <!-- Tabs -->
+                <div class="border-b border-gray-200 mb-6">
+                    <nav class="-mb-px flex space-x-8">
+                        <button onclick="showTab('stats')" class="tab-btn border-blue-500 text-blue-600 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+                            Statistiques
+                        </button>
+                        <button onclick="showTab('users')" class="tab-btn border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+                            Utilisateurs
+                        </button>
+                        <button onclick="showTab('packs')" class="tab-btn border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">
+                            Packs
+                        </button>
+                    </nav>
+                </div>
+
+                <!-- Contenu des tabs -->
+                <%- include('../partials/admin-stats') %>
+                
+                <%- include('../partials/admin-users') %>
+                <%- include('../partials/admin-packs') %>
+            </div>
+        </div>
+    </div>
+    
+    <% if (locals.additionalJS) { %>
+        <% additionalJS.forEach(js => { %>
+            <script src="<%= js %>"></script>
+        <% }) %>
+    <% } %>
+</body>
+</html>

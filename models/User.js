@@ -35,6 +35,10 @@ const userSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+  isTestAccount: {
+    type: Boolean,
+    default: false
   }
 });
 

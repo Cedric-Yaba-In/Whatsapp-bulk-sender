@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %> - WhatsApp Bulk Sender</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+</head>
+<body class="<%= bodyClass %>">
+    <div class="container mx-auto px-4 py-8">
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-900 mb-4">WhatsApp Bulk Sender</h1>
+            <p class="text-gray-600">Choisissez votre pack pour commencer à envoyer des messages en masse</p>
+        </div>
+
+        <!-- Packs disponibles -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="packs-container">
+            <!-- Les packs seront chargés ici -->
+        </div>
+    </div>
+
+    <!-- Modal de création de compte -->
+    <div id="signup-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 class="text-xl font-bold mb-4">Créer votre compte gratuit</h3>
+            <form id="signup-form">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Nom complet</label>
+                    <input type="text" id="user-name" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Email (optionnel)</label>
+                    <input type="email" id="user-email" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+                </div>
+                <div class="flex gap-3">
+                    <button type="button" onclick="hideSignupModal()" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                        Annuler
+                    </button>
+                    <button type="submit" class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                        Créer mon compte
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal de code généré -->
+    <div id="code-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 w-full max-w-md mx-4 text-center">
+            <h3 class="text-xl font-bold mb-4 text-green-600">🎉 Compte créé avec succès !</h3>
+            <p class="text-gray-600 mb-4">Voici votre code d'accès :</p>
+            <div class="bg-green-100 rounded-lg p-4 mb-4">
+                <span class="text-sm text-green-700">Code d'accès :</span><br>
+                <span id="generated-code" class="font-mono text-2xl font-bold text-green-900"></span>
+            </div>
+            <p class="text-sm text-gray-500 mb-4">Conservez ce code précieusement pour accéder à votre compte.</p>
+            <div class="flex gap-3">
+                <button onclick="copyCode()" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+                    Copier le code
+                </button>
+                <a href="/" class="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 inline-block">
+                    Commencer
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <% if (locals.additionalJS) { %>
+        <% additionalJS.forEach(js => { %>
+            <script src="<%= js %>"></script>
+        <% }) %>
+    <% } %>
+</body>
+</html>

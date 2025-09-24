@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %> - WhatsApp Bulk Sender</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+</head>
+<body class="<%= bodyClass %>">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold text-center mb-8 text-green-600">WhatsApp Bulk Sender</h1>
+        
+        <!-- Stepper -->
+        <%- include('../partials/stepper') %>
+        
+        <!-- Page 0: Connexion Utilisateur -->
+        <div id="page-user-login" class="page">
+            <%- include('../partials/user-login') %>
+        </div>
+
+        <!-- Page 1: Connexion WhatsApp -->
+        <div id="page-connection" class="page hidden">
+            <%- include('../partials/whatsapp-connection') %>
+        </div>
+
+        <!-- Page 2: Import des contacts -->
+        <div id="page-import" class="page hidden">
+            <%- include('../partials/contact-import') %>
+        </div>
+
+        <!-- Page 3: Rédaction du message -->
+        <div id="page-message" class="page hidden">
+            <%- include('../partials/message-compose') %>
+        </div>
+
+        <!-- Page 4: Envoi des messages -->
+        <div id="page-send" class="page hidden">
+            <%- include('../partials/message-send') %>
+        </div>
+    </div>
+
+    <!-- Widget de statut utilisateur (fixe en bas à gauche) -->
+    <div id="user-status-widget" class="fixed bottom-4 left-4 bg-white border border-gray-300 rounded-lg shadow-lg p-3 hidden z-50 max-w-xs">
+        <div class="flex items-center space-x-2">
+            <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+            <div class="text-sm">
+                <div class="font-semibold text-gray-800" id="widget-user-name">Utilisateur</div>
+                <div class="text-xs text-gray-600">
+                    <span id="widget-remaining-messages" class="font-bold text-green-600">0</span>/<span id="widget-daily-limit" class="text-gray-500">0</span> messages restants
+                </div>
+                <div class="text-xs text-blue-600 mt-1">
+                    🔄 Reset à 01h00
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .page {
+            display: none;
+        }
+        .page.active {
+            display: block;
+        }
+        #page-user-login {
+            display: block;
+        }
+    </style>
+    
+    <% if (locals.additionalJS) { %>
+        <% additionalJS.forEach(js => { %>
+            <script src="<%= js %>"></script>
+        <% }) %>
+    <% } %>
+</body>
+</html>
