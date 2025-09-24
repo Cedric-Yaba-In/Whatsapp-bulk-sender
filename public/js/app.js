@@ -85,7 +85,7 @@ const prevStep = () => {
 // Fonction pour revenir au formulaire de connexion
 const showLoginForm = () => {
   // Supprimer le composant des infos utilisateur
-  const userInfoComponent = document.querySelector('#page-user-login .bg-white:last-child');
+  const userInfoComponent = document.querySelector('#page-user-login .user-connected-info');
   if (userInfoComponent) {
     userInfoComponent.remove();
   }
@@ -96,11 +96,167 @@ const showLoginForm = () => {
     loginComponent.style.display = 'block';
   }
   
+  // S'assurer que la page de connexion est visible
+  const userLoginPage = document.getElementById('page-user-login');
+  if (userLoginPage) {
+    userLoginPage.classList.remove('hidden');
+    userLoginPage.classList.add('active');
+  }
+  
   // Cacher le widget de statut
   hideUserStatusWidget();
   
   currentUser = null;
+  localStorage.removeItem('currentUser');
   toastr.info('Veuillez saisir votre code d\'accès');
+};
+
+// Fonction pour valider la session utilisateur
+const validateUserSession = async () => {
+  if (!currentUser || !currentUser.code) return false;
+  
+  try {
+    const response = await fetch(`/api/user-stats/${currentUser.code}`);
+    const data = await response.json();
+    return data.success;
+  } catch (error) {
+    console.error('Erreur lors de la validation de session:', error);
+    return false;
+  }
+};
+
+// Fonction pour actualiser les stats utilisateur
+const refreshUserStats = async () => {
+  if (!currentUser || !currentUser.code) return;
+  
+  try {
+    const response = await fetch(`/api/user-stats/${currentUser.code}`);
+    const data = await response.json();
+    
+    if (data.success) {
+      console.log('Stats actualisées:', data.user);
+      currentUser = data.user;
+      localStorage.setItem('currentUser', JSON.stringify(currentUser));
+      updateUserStatusWidget({
+        messagesUsed: currentUser.messagesUsedToday,
+        remainingMessages: currentUser.remainingMessages,
+        dailyLimit: currentUser.dailyLimit
+      });
+    }
+  } catch (error) {
+    console.error('Erreur lors de l\'actualisation des stats:', error);
+  }
+};
+
+// Fonction pour afficher l'interface utilisateur connecté
+const showUserConnectedInterface = (user) => {
+  // Vérifier si le composant existe déjà
+  let userInfoComponent = document.querySelector('#page-user-login .user-connected-info');
+  
+  if (userInfoComponent) {
+    // Mettre à jour le composant existant
+    const remainingEl = userInfoComponent.querySelector('.remaining-messages');
+    if (remainingEl) {
+      remainingEl.textContent = user.remainingMessages;
+    }
+    return;
+  }
+  
+  // Cacher le formulaire de connexion
+  const loginComponent = document.querySelector('#page-user-login .bg-white');
+  if (loginComponent) {
+    loginComponent.style.display = 'none';
+  }
+  
+  // Créer le composant des informations utilisateur
+  userInfoComponent = document.createElement('div');
+  userInfoComponent.className = 'bg-white rounded-lg shadow-md p-8 max-w-md mx-auto user-connected-info';
+  userInfoComponent.innerHTML = `
+    <div class="text-center mb-6">
+      <div class="flex items-center justify-center mb-3">
+        <svg class="w-8 h-8 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+        </svg>
+        <h2 class="text-2xl font-bold text-green-800">Connecté avec succès !</h2>
+      </div>
+    </div>
+    
+    <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+      <div class="text-sm text-green-700 space-y-2">
+        <p><strong>Utilisateur:</strong> ${user.name}</p>
+        <p><strong>Pack:</strong> ${user.pack}</p>
+        <p><strong>Messages restants:</strong> <span class="font-bold text-green-800 remaining-messages">${user.remainingMessages}</span></p>
+      </div>
+    </div>
+    
+    <div class="space-y-3">
+      <button onclick="nextStep()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition">
+        Continuer → Connexion WhatsApp
+      </button>
+      <button onclick="logoutUser()" class="w-full bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-lg text-sm transition">
+        Se déconnecter
+      </button>
+    </div>
+  `;
+  
+  document.getElementById('page-user-login').appendChild(userInfoComponent);
+  
+  // S'assurer que la page est visible
+  const userLoginPage = document.getElementById('page-user-login');
+  if (userLoginPage) {
+    userLoginPage.classList.remove('hidden');
+    userLoginPage.classList.add('active');
+  }
+};
+
+// Fonction pour mettre à jour les informations utilisateur dans l'interface
+const updateUserInfo = (user) => {
+  console.log('Mise à jour des infos utilisateur:', user);
+  
+  // Vérifier si l'utilisateur est déjà connecté pour éviter la duplication
+  const existingComponent = document.querySelector('#page-user-login .user-connected-info');
+  if (existingComponent) {
+    // Juste mettre à jour les données
+    const remainingEl = existingComponent.querySelector('.remaining-messages');
+    if (remainingEl) {
+      remainingEl.textContent = user.remainingMessages;
+    }
+    showUserStatusWidget(user);
+    return;
+  }
+  
+  // Sinon, afficher l'interface complète
+  showUserConnectedInterface(user);
+  showUserStatusWidget(user);
+};
+
+// Fonction pour déconnecter l'utilisateur
+const logoutUser = () => {
+  currentUser = null;
+  localStorage.removeItem('currentUser');
+  hideUserStatusWidget();
+  
+  // Supprimer le composant des infos utilisateur
+  const userInfoComponent = document.querySelector('#page-user-login .user-connected-info');
+  if (userInfoComponent) {
+    userInfoComponent.remove();
+  }
+  
+  // Réafficher le formulaire de connexion
+  const loginComponent = document.querySelector('#page-user-login .bg-white');
+  if (loginComponent) {
+    loginComponent.style.display = 'block';
+  }
+  
+  // Réinitialiser le formulaire
+  const userCodeInput = document.getElementById('user-code');
+  if (userCodeInput) {
+    userCodeInput.value = '';
+  }
+  
+  // Revenir à la page de connexion
+  showStep(0);
+  toastr.info('Déconnecté avec succès');
 };
 
 // Connexion utilisateur
@@ -129,49 +285,13 @@ document.getElementById('user-login-form').addEventListener('submit', async (e) 
     if (data.valid) {
       currentUser = data.user;
       
-      // Cacher tout le composant de connexion utilisateur
-      const loginComponent = document.querySelector('#page-user-login .bg-white');
-      if (loginComponent) {
-        loginComponent.style.display = 'none';
-      }
-      
-      // Créer et afficher le composant des informations utilisateur
-      const userInfoComponent = document.createElement('div');
-      userInfoComponent.className = 'bg-white rounded-lg shadow-md p-8 max-w-md mx-auto';
-      userInfoComponent.innerHTML = `
-        <div class="text-center mb-6">
-          <div class="flex items-center justify-center mb-3">
-            <svg class="w-8 h-8 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-            </svg>
-            <h2 class="text-2xl font-bold text-green-800">Connecté avec succès !</h2>
-          </div>
-        </div>
-        
-        <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-          <div class="text-sm text-green-700 space-y-2">
-            <p><strong>Utilisateur:</strong> ${data.user.name}</p>
-            <p><strong>Pack:</strong> ${data.user.pack}</p>
-            <p><strong>Messages restants:</strong> <span class="font-bold text-green-800">${data.user.remainingMessages}</span></p>
-          </div>
-        </div>
-        
-        <div class="space-y-3">
-          <button onclick="nextStep()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition">
-            Continuer → Connexion WhatsApp
-          </button>
-          <button onclick="showLoginForm()" class="w-full bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded-lg text-sm transition">
-            Changer d'utilisateur
-          </button>
-        </div>
-      `;
-      
-      document.getElementById('page-user-login').appendChild(userInfoComponent);
+      // Sauvegarder dans localStorage pour persistance
+      localStorage.setItem('currentUser', JSON.stringify(currentUser));
       
       toastr.success(`Bienvenue ${data.user.name} !`, 'Connexion réussie');
       
-      // Afficher le widget de statut
-      showUserStatusWidget(data.user);
+      // Mettre à jour les informations utilisateur
+      updateUserInfo(data.user);
     } else {
       toastr.error(data.message || 'Code utilisateur invalide', 'Erreur');
     }
@@ -188,8 +308,10 @@ document.getElementById('user-login-form').addEventListener('submit', async (e) 
 let statusInterval;
 
 const checkWhatsAppStatus = async () => {
+  if (!currentUser || !currentUser.code) return;
+  
   try {
-    const response = await fetch('/api/status');
+    const response = await fetch(`/api/status/${currentUser.code}`);
     const data = await response.json();
     
     // Mettre à jour la progression
@@ -215,32 +337,95 @@ const checkWhatsAppStatus = async () => {
 };
 
 // Démarrer la vérification du statut quand on arrive sur la page WhatsApp
-const startWhatsAppCheck = () => {
+const startWhatsAppCheck = async () => {
+  if (!currentUser) {
+    toastr.error('Utilisateur non connecté');
+    return;
+  }
+  
+  console.log(`🔄 Initialisation session WhatsApp pour ${currentUser.code}`);
+  
+  // Initialiser la session WhatsApp pour cet utilisateur
+  try {
+    const response = await fetch('/api/init-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userCode: currentUser.code })
+    });
+    
+    const data = await response.json();
+    if (data.success) {
+      console.log(`✅ Session initialisée pour ${currentUser.code}`);
+    } else {
+      console.error('Erreur initialisation:', data.error);
+    }
+  } catch (error) {
+    console.error('Erreur initialisation session:', error);
+    toastr.error('Erreur lors de l\'initialisation de votre session WhatsApp');
+  }
+  
   checkWhatsAppStatus();
   statusInterval = setInterval(checkWhatsAppStatus, 2000);
 };
 
 // Reconnexion WhatsApp
 const forceReconnect = async () => {
+  if (!currentUser) {
+    toastr.error('Utilisateur non connecté');
+    return;
+  }
+  
   try {
     document.getElementById('connected-section').classList.add('hidden');
     document.getElementById('loading-section').classList.remove('hidden');
     
-    await fetch('/api/reconnect', { method: 'POST' });
-    startWhatsAppCheck();
+    console.log(`🔄 Reconnexion WhatsApp pour ${currentUser.code}`);
+    
+    const response = await fetch('/api/reconnect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userCode: currentUser.code })
+    });
+    
+    const data = await response.json();
+    if (data.success) {
+      toastr.success('Reconnexion en cours...');
+      startWhatsAppCheck();
+    } else {
+      toastr.error(data.error || 'Erreur lors de la reconnexion');
+    }
   } catch (error) {
+    console.error('Erreur reconnexion:', error);
     toastr.error('Erreur lors de la reconnexion');
   }
 };
 
 // Déconnexion WhatsApp
 const disconnect = async () => {
+  if (!currentUser) {
+    toastr.error('Utilisateur non connecté');
+    return;
+  }
+  
   try {
-    await fetch('/api/disconnect', { method: 'POST' });
-    document.getElementById('connected-section').classList.add('hidden');
-    document.getElementById('loading-section').classList.remove('hidden');
-    toastr.success('Déconnecté avec succès');
+    console.log(`🔌 Déconnexion WhatsApp pour ${currentUser.code}`);
+    
+    const response = await fetch('/api/disconnect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userCode: currentUser.code })
+    });
+    
+    const data = await response.json();
+    if (data.success) {
+      document.getElementById('connected-section').classList.add('hidden');
+      document.getElementById('loading-section').classList.remove('hidden');
+      toastr.success('Déconnecté avec succès');
+    } else {
+      toastr.error(data.error || 'Erreur lors de la déconnexion');
+    }
   } catch (error) {
+    console.error('Erreur déconnexion:', error);
     toastr.error('Erreur lors de la déconnexion');
   }
 };
@@ -294,7 +479,7 @@ const setupFileUpload = () => {
   
   // Upload du fichier
   if (uploadBtn) {
-    uploadBtn.addEventListener('click', uploadFile);
+    uploadBtn.addEventListener('click', (e)=>uploadFile(e));
   }
 };
 
@@ -319,8 +504,9 @@ const handleFileSelection = (file) => {
   window.selectedFile = file;
 };
 
-const uploadFile = async () => {
+const uploadFile = async (e) => {
   if (!window.selectedFile) return;
+  e.stopPropagation()
   
   const formData = new FormData();
   formData.append('file', window.selectedFile);
@@ -448,7 +634,10 @@ const removeAttachment = () => {
 };
 
 // Fonctions pour l'envoi de messages
-const setupSendPage = () => {
+const setupSendPage = async () => {
+  // Actualiser les stats utilisateur avant l'affichage
+  await refreshUserStats();
+  
   const totalContactsEl = document.getElementById('total-contacts');
   const messageLengthEl = document.getElementById('message-length');
   const estimatedTimeEl = document.getElementById('estimated-time');
@@ -508,7 +697,12 @@ const startSending = async () => {
     return;
   }
   
-  // Vérifier la limite quotidienne
+  // Vérifier la limite quotidienne avant l'envoi
+  if (currentUser.remainingMessages <= 0) {
+    toastr.error('Limite quotidienne atteinte ! Votre quota se réinitialise à 01h00.');
+    return;
+  }
+  
   if (contacts.length > currentUser.remainingMessages) {
     toastr.error(`Limite quotidienne dépassée. Vous pouvez envoyer ${currentUser.remainingMessages} messages aujourd'hui.`);
     return;
@@ -544,6 +738,16 @@ const startSending = async () => {
     
     const data = await response.json();
     
+    if (response.status === 429) {
+      // Envoi déjà en cours
+      toastr.warning(data.error || 'Un envoi est déjà en cours', 'Veuillez patienter');
+      
+      // Réafficher les actions
+      document.querySelector('.bg-gradient-to-r.from-gray-50').style.display = 'block';
+      document.getElementById('sending-progress').classList.add('hidden');
+      return;
+    }
+    
     if (data.results) {
       // Simuler la progression (en réalité, cela devrait être en temps réel)
       for (let i = 0; i <= contacts.length; i++) {
@@ -567,9 +771,18 @@ const startSending = async () => {
         if (currentUser) {
           currentUser.remainingMessages = data.userStats.remainingMessages;
           currentUser.messagesUsedToday = data.userStats.messagesUsed;
+          currentUser.dailyLimit = data.userStats.dailyLimit;
+          
+          // Sauvegarder dans localStorage pour persistance
+          localStorage.setItem('currentUser', JSON.stringify(currentUser));
           
           // Mettre à jour le widget de statut
           updateUserStatusWidget(data.userStats);
+          
+          // Vérifier si la limite est atteinte
+          if (data.userStats.remainingMessages <= 0) {
+            toastr.warning('Limite quotidienne atteinte ! Votre quota se réinitialise à 01h00.', 'Limite atteinte');
+          }
         }
       } else {
         toastr.success('Envoi terminé !');
@@ -622,9 +835,13 @@ const showResults = (results, userStats = null) => {
       </div>
     `;
     
-    // Insérer avant la liste des résultats
+    // Ajouter au début de la section résultats
     const resultsList = document.getElementById('results-list');
-    resultsSection.insertBefore(userStatsDiv, resultsList);
+    if (resultsList && resultsList.parentNode === resultsSection) {
+      resultsSection.insertBefore(userStatsDiv, resultsList);
+    } else {
+      resultsSection.appendChild(userStatsDiv);
+    }
   }
   
   const resultsList = document.getElementById('results-list');
@@ -662,9 +879,11 @@ const showUserStatusWidget = (user) => {
   const widget = document.getElementById('user-status-widget');
   if (!widget) return;
   
+  console.log('Affichage widget avec user:', user);
+  
   document.getElementById('widget-user-name').textContent = user.name;
-  document.getElementById('widget-remaining-messages').textContent = user.remainingMessages;
-  document.getElementById('widget-daily-limit').textContent = user.dailyLimit;
+  document.getElementById('widget-remaining-messages').textContent = user.remainingMessages || 0;
+  document.getElementById('widget-daily-limit').textContent = user.dailyLimit || 0;
   
   widget.classList.remove('hidden');
   
@@ -682,12 +901,14 @@ const showUserStatusWidget = (user) => {
 const updateUserStatusWidget = (userStats) => {
   if (!userStats) return;
   
+  console.log('Mise à jour widget avec stats:', userStats);
+  
   const remainingEl = document.getElementById('widget-remaining-messages');
   const dailyLimitEl = document.getElementById('widget-daily-limit');
   
   if (remainingEl && dailyLimitEl) {
-    remainingEl.textContent = userStats.remainingMessages;
-    dailyLimitEl.textContent = userStats.dailyLimit;
+    remainingEl.textContent = userStats.remainingMessages || 0;
+    dailyLimitEl.textContent = userStats.dailyLimit || 0;
     
     // Animation de mise à jour
     remainingEl.style.transform = 'scale(1.2)';
@@ -715,7 +936,6 @@ const hideUserStatusWidget = () => {
 
 const resetApp = () => {
   contacts = [];
-  currentUser = null;
   window.attachmentFile = null;
   
   // Réinitialiser tous les éléments
@@ -725,23 +945,84 @@ const resetApp = () => {
   const actionsDiv = document.querySelector('.bg-gradient-to-r.from-gray-50');
   if (actionsDiv) actionsDiv.style.display = 'block';
   
-  // Cacher le widget de statut
-  hideUserStatusWidget();
+  // Revenir à l'étape d'import si l'utilisateur est connecté
+  if (currentUser) {
+    showStep(2); // Page d'import
+    toastr.info('Prêt pour un nouvel envoi');
+  } else {
+    showStep(0);
+    showLoginForm();
+    toastr.info('Application réinitialisée');
+  }
+};
+
+// Fonction pour un nouvel envoi (sans déconnecter l'utilisateur)
+const newSending = () => {
+  contacts = [];
+  window.attachmentFile = null;
   
-  showStep(0);
-  showLoginForm();
-  toastr.info('Application réinitialisée');
+  // Réinitialiser les éléments d'envoi
+  document.getElementById('sending-progress').classList.add('hidden');
+  document.getElementById('results-section').classList.add('hidden');
+  
+  const actionsDiv = document.querySelector('.bg-gradient-to-r.from-gray-50');
+  if (actionsDiv) actionsDiv.style.display = 'block';
+  
+  // Réinitialiser l'import
+  resetImport();
+  
+  // Revenir à l'étape d'import
+  showStep(2);
+  toastr.info('Prêt pour un nouvel envoi');
 };
 
 // Initialisation
-document.addEventListener('DOMContentLoaded', () => {
-  // S'assurer que la première page est visible
+document.addEventListener('DOMContentLoaded', async () => {
+  // S'assurer que la première page est visible dès le début
   const firstPage = document.getElementById('page-user-login');
   if (firstPage) {
     firstPage.classList.remove('hidden');
     firstPage.classList.add('active');
   }
   
+  // Restaurer l'utilisateur depuis localStorage si disponible
+  const savedUser = localStorage.getItem('currentUser');
+  if (savedUser) {
+    try {
+      currentUser = JSON.parse(savedUser);
+      console.log('Utilisateur restauré depuis localStorage:', currentUser);
+      
+      // Vérifier si la session est encore valide
+      const isValid = await validateUserSession();
+      if (isValid) {
+        // Cacher le formulaire de connexion et afficher l'interface utilisateur connecté
+        const loginForm = document.querySelector('#page-user-login .bg-white');
+        if (loginForm) {
+          loginForm.style.display = 'none';
+        }
+        
+        showUserConnectedInterface(currentUser);
+        showUserStatusWidget(currentUser);
+        
+        // Actualiser les stats depuis le serveur
+        await refreshUserStats();
+        
+        console.log('Session restaurée avec succès');
+        return;
+      } else {
+        // Session expirée, nettoyer
+        localStorage.removeItem('currentUser');
+        currentUser = null;
+        console.log('Session expirée, nettoyage effectué');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la restauration de l\'utilisateur:', error);
+      localStorage.removeItem('currentUser');
+      currentUser = null;
+    }
+  }
+  
+  // Afficher le formulaire de connexion si pas d'utilisateur connecté
   showStep(0);
   
   // Setup des composants

@@ -90,4 +90,34 @@ router.post('/verify-user', async (req, res) => {
   }
 });
 
+// Route pour récupérer les stats utilisateur actualisées
+router.get('/user-stats/:userCode', async (req, res) => {
+  const { userCode } = req.params;
+  const UserService = require('../services/userService');
+  const TestAccountService = require('../services/testAccountService');
+  
+  try {
+    const clientIp = req.ip || req.connection.remoteAddress || req.socket.remoteAddress || '127.0.0.1';
+    
+    if (userCode.toUpperCase() === 'TEST2024') {
+      const testAccount = await TestAccountService.getOrCreateTestAccount(clientIp);
+      const userStats = TestAccountService.getTestAccountStats(testAccount);
+      return res.json({ success: true, user: userStats });
+    }
+    
+    let user = await User.findOne({ code: userCode.toUpperCase(), isActive: true }).populate('packId');
+    
+    if (!user) {
+      return res.json({ success: false, message: 'Utilisateur non trouvé' });
+    }
+    
+    user = await UserService.checkAndResetDailyMessages(user);
+    const userStats = UserService.getUserStats(user);
+    
+    res.json({ success: true, user: userStats });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Erreur lors de la récupération des stats' });
+  }
+});
+
 module.exports = router;

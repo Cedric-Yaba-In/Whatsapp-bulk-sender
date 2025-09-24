@@ -1,10 +1,15 @@
-// Configuration Toastr
-toastr.options = {
-    "closeButton": true,
-    "progressBar": true,
-    "positionClass": "toast-top-right",
-    "timeOut": "3000"
-};
+// Attendre que jQuery et Toastr soient chargés
+document.addEventListener('DOMContentLoaded', function() {
+    // Configuration Toastr
+    if (typeof toastr !== 'undefined') {
+        toastr.options = {
+            "closeButton": true,
+            "progressBar": true,
+            "positionClass": "toast-top-right",
+            "timeOut": "3000"
+        };
+    }
+});
 
 const loadPacks = async () => {
     try {
@@ -50,14 +55,13 @@ const loadPacks = async () => {
                 </div>
             `).join('');
     } catch (error) {
-        toastr.error('Erreur lors du chargement des packs');
+        showToast('error', 'Erreur lors du chargement des packs');
     }
 };
 
 // Modal functions
 const showSignupModal = () => {
     document.getElementById('signup-modal').classList.remove('hidden');
-    toastr.info('Remplissez le formulaire pour créer votre compte gratuit', 'Création de compte');
 };
 
 const hideSignupModal = () => {
@@ -72,55 +76,107 @@ const hideCodeModal = () => {
 const copyCode = () => {
     const code = document.getElementById('generated-code').textContent;
     navigator.clipboard.writeText(code).then(() => {
-        toastr.success('Code copié dans le presse-papiers !', 'Succès');
+        showToast('success', 'Code copié dans le presse-papiers !');
     }).catch(() => {
-        toastr.error('Impossible de copier le code');
+        showToast('error', 'Impossible de copier le code');
+    });
+};
+
+const copyTestCode = () => {
+    navigator.clipboard.writeText('TEST2024').then(() => {
+        showToast('success', 'Code de test copié !');
+    }).catch(() => {
+        showToast('error', 'Impossible de copier le code');
     });
 };
 
 // Signup form
-document.getElementById('signup-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    const submitBtn = e.target.querySelector('button[type="submit"]');
-    const originalText = submitBtn.textContent;
-    
-    // Afficher le loader
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<div class="flex items-center justify-center"><div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>Création...</div>';
-    
-    const userData = {
-        name: document.getElementById('user-name').value,
-        email: document.getElementById('user-email').value || null
-    };
-    
-    try {
-        toastr.info('Création de votre compte en cours...');
-        
-        const response = await fetch('/api/signup', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(userData)
+const initSignupForm = () => {
+    const signupForm = document.getElementById('signup-form');
+    if (signupForm) {
+        signupForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            console.log('Formulaire soumis');
+            
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            const originalText = submitBtn.textContent;
+            
+            // Validation
+            const name = document.getElementById('user-name').value.trim();
+            if (!name) {
+                showToast('error', 'Veuillez entrer votre nom');
+                return;
+            }
+            
+            // Afficher le loader
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = `
+                <div class="flex items-center justify-center">
+                    <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Création...
+                </div>
+            `;
+            
+            const userData = {
+                name: name,
+                email: document.getElementById('user-email').value.trim() || null
+            };
+            
+            console.log('Données utilisateur:', userData);
+            
+            try {
+                const response = await fetch('/api/signup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(userData)
+                });
+                
+                console.log('Réponse reçue:', response.status);
+                const data = await response.json();
+                console.log('Données reçues:', data);
+                
+                if (data.success) {
+                    showToast('success', 'Compte créé avec succès ! Voici votre code d\'accès.');
+                    document.getElementById('generated-code').textContent = data.code;
+                    hideSignupModal();
+                    document.getElementById('code-modal').classList.remove('hidden');
+                } else {
+                    showToast('error', data.message || 'Erreur lors de la création du compte');
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                showToast('error', 'Erreur de connexion. Veuillez réessayer.');
+            } finally {
+                // Restaurer le bouton
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            }
         });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            toastr.success('Compte créé avec succès !');
-            document.getElementById('generated-code').textContent = data.code;
-            hideSignupModal();
-            document.getElementById('code-modal').classList.remove('hidden');
-        } else {
-            toastr.error(data.message || 'Erreur lors de la création du compte');
-        }
-    } catch (error) {
-        toastr.error('Erreur de connexion. Veuillez réessayer.');
-    } finally {
-        // Restaurer le bouton
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = originalText;
+    } else {
+        console.error('Formulaire signup-form non trouvé');
     }
-});
+};
 
-// Charger les packs au démarrage
-loadPacks();
+// Fonction pour afficher les toasts de manière sécurisée
+const showToast = (type, message) => {
+    if (typeof toastr !== 'undefined') {
+        toastr[type](message);
+    } else {
+        // Fallback si toastr n'est pas disponible
+        alert(message);
+    }
+};
+
+// Initialisation complète
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Page chargée, initialisation...');
+    
+    // Attendre un peu pour que toastr soit complètement chargé
+    setTimeout(() => {
+        loadPacks();
+        initSignupForm();
+    }, 100);
+});

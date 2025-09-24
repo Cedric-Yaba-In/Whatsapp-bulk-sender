@@ -33,11 +33,12 @@ class TestAccountService {
   }
   
   static async decrementMessages(testAccount, messageCount) {
+    const previousUsed = testAccount.messagesUsedToday;
     testAccount.messagesUsedToday += messageCount;
     await testAccount.save();
     
-    const remainingMessages = 5 - testAccount.messagesUsedToday;
-    console.log(`📊 IP ${testAccount.ipAddress}: ${messageCount} messages envoyés, ${remainingMessages} restants`);
+    const remainingMessages = Math.max(0, 5 - testAccount.messagesUsedToday);
+    console.log(`📊 Test IP ${testAccount.ipAddress}: ${previousUsed} -> ${testAccount.messagesUsedToday} (+${messageCount}), ${remainingMessages}/5 restants`);
     
     return {
       messagesUsed: testAccount.messagesUsedToday,
@@ -47,7 +48,9 @@ class TestAccountService {
   }
   
   static getTestAccountStats(testAccount) {
-    const remainingMessages = 5 - testAccount.messagesUsedToday;
+    const remainingMessages = Math.max(0, 5 - testAccount.messagesUsedToday);
+    
+    console.log(`📊 Test account IP ${testAccount.ipAddress}: utilisés=${testAccount.messagesUsedToday}, restants=${remainingMessages}/5`);
     
     return {
       name: 'Compte Test',
@@ -55,7 +58,8 @@ class TestAccountService {
       dailyLimit: 5,
       messagesUsedToday: testAccount.messagesUsedToday,
       remainingMessages: remainingMessages,
-      resetDate: testAccount.lastResetDate
+      resetDate: testAccount.lastResetDate,
+      code: 'TEST2024'
     };
   }
 }

@@ -45,11 +45,13 @@ class UserService {
       };
     }
     
+    const previousUsed = user.messagesUsedToday;
     user.messagesUsedToday += messageCount;
     await user.save();
     
-    const remainingMessages = user.packId.dailyLimit - user.messagesUsedToday;
-    console.log(`📊 Utilisateur ${user.code}: ${messageCount} messages envoyés, ${remainingMessages} restants`);
+    const remainingMessages = Math.max(0, user.packId.dailyLimit - user.messagesUsedToday);
+    
+    console.log(`📊 Utilisateur ${user.code}: ${previousUsed} -> ${user.messagesUsedToday} (+${messageCount}), ${remainingMessages}/${user.packId.dailyLimit} restants`);
     
     return {
       messagesUsed: user.messagesUsedToday,
@@ -68,11 +70,14 @@ class UserService {
         dailyLimit: 999999,
         messagesUsedToday: 0,
         remainingMessages: 999999,
-        resetDate: user.lastResetDate
+        resetDate: user.lastResetDate,
+        code: user.code
       };
     }
     
-    const remainingMessages = user.packId.dailyLimit - user.messagesUsedToday;
+    const remainingMessages = Math.max(0, user.packId.dailyLimit - user.messagesUsedToday);
+    
+    console.log(`📊 Stats pour ${user.code}: utilisés=${user.messagesUsedToday}, limite=${user.packId.dailyLimit}, restants=${remainingMessages}`);
     
     return {
       name: user.name,
@@ -80,7 +85,8 @@ class UserService {
       dailyLimit: user.packId.dailyLimit,
       messagesUsedToday: user.messagesUsedToday,
       remainingMessages: remainingMessages,
-      resetDate: user.lastResetDate
+      resetDate: user.lastResetDate,
+      code: user.code
     };
   }
 }

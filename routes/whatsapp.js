@@ -1,5 +1,5 @@
 const express = require('express');
-const whatsappService = require('../services/whatsappService');
+const sessionManager = require('../services/whatsappSessionManager');
 const fileService = require('../services/fileService');
 const { authenticateUser } = require('../middleware/auth');
 const User = require('../models/User');
@@ -7,23 +7,29 @@ const Usage = require('../models/Usage');
 
 const router = express.Router();
 
-router.get('/status', (req, res) => {
+router.get('/status/:userCode', (req, res) => {
   try {
-    res.json(whatsappService.getStatus());
+    const { userCode } = req.params;
+    const status = sessionManager.getSessionStatus(userCode);
+    res.json({
+      ...status,
+      timestamp: Date.now()
+    });
   } catch (error) {
     console.error('Erreur dans /api/status:', error.message);
     res.json({ 
       isReady: false, 
-      qrCode: '',
+      qrCode: null,
       timestamp: Date.now(),
       loading: { progress: 0, message: 'Erreur de connexion' }
     });
   }
 });
 
-router.post('/reconnect', async (req, res) => {
+router.post('/reconnect', authenticateUser, async (req, res) => {
   try {
-    await whatsappService.reconnect();
+    const userCode = req.user.code || req.user.userCode || 'TEST2024';
+    await sessionManager.reconnectSession(userCode);
     res.json({ success: true, message: 'Reconnexion en cours...' });
   } catch (error) {
     console.error('Erreur lors de la reconnexion:', error);
@@ -31,12 +37,30 @@ router.post('/reconnect', async (req, res) => {
   }
 });
 
-router.post('/disconnect', async (req, res) => {
+router.post('/disconnect', authenticateUser, async (req, res) => {
   try {
-    await whatsappService.disconnect();
+    const userCode = req.user.code || req.user.userCode || 'TEST2024';
+    await sessionManager.disconnectSession(userCode);
     res.json({ success: true, message: 'Déconnecté avec succès' });
   } catch (error) {
     res.status(500).json({ error: 'Erreur lors de la déconnexion' });
+  }
+});
+
+// Route pour obtenir les statistiques des sessions
+router.get('/sessions-stats', (req, res) => {
+  res.json(sessionManager.getSessionsStats());
+});
+
+// Route pour initialiser une session WhatsApp
+router.post('/init-session', authenticateUser, async (req, res) => {
+  try {
+    const userCode = req.user.code || req.user.userCode || 'TEST2024';
+    await sessionManager.getSession(userCode);
+    res.json({ success: true, message: 'Session initialisée' });
+  } catch (error) {
+    console.error('Erreur initialisation session:', error);
+    res.status(500).json({ error: 'Erreur lors de l\'initialisation' });
   }
 });
 
@@ -45,9 +69,20 @@ router.post('/send-messages', authenticateUser, async (req, res) => {
   const UserService = require('../services/userService');
   const TestAccountService = require('../services/testAccountService');
   
-  if (!whatsappService.isReady) {
-    return res.status(400).json({ error: 'WhatsApp non connecté. Veuillez vous reconnecter.' });
+  // Vérifier que la session WhatsApp de l'utilisateur est connectée
+  const userCode = req.user.code || req.user.userCode || 'TEST2024';
+  
+  // Vérifier si un envoi est déjà en cours pour cet utilisateur
+  if (sessionManager.sendingLocks.get(userCode)) {
+    return res.status(429).json({ error: 'Un envoi est déjà en cours. Veuillez patienter.' });
   }
+  
+  const sessionStatus = sessionManager.getSessionStatus(userCode);
+  if (!sessionStatus.isReady) {
+    return res.status(400).json({ error: 'Votre session WhatsApp n\'est pas connectée. Veuillez vous connecter d\'abord.' });
+  }
+  
+  console.log(`🚀 Démarrage envoi pour ${userCode}: ${contacts.length} contacts`);
   
   try {
     const clientIp = req.ip || req.connection.remoteAddress || req.socket.remoteAddress || '127.0.0.1';
@@ -85,100 +120,97 @@ router.post('/send-messages', authenticateUser, async (req, res) => {
       }
     }
 
-    const results = [];
-    let successfulSends = 0;
+    // Verrouiller l'envoi pour cet utilisateur
+    sessionManager.sendingLocks.set(userCode, true);
     
-    for (let i = 0; i < contacts.length; i++) {
-      const contact = contacts[i];
+    try {
+      // Envoyer directement avec la session de l'utilisateur
+      const results = [];
+      let successfulSends = 0;
       
-      try {
-        const personalizedMessage = message.replace(/{{name}}/g, contact.name);
-        await whatsappService.sendMessage(contact.phone, personalizedMessage, attachment);
+      for (let i = 0; i < contacts.length; i++) {
+        const contact = contacts[i];
         
-        results.push({ 
-          contact: contact.name, 
-          phone: contact.phone,
-          status: 'sent',
-          sentAt: new Date().toISOString()
-        });
-        
-        successfulSends++;
-        
-      } catch (error) {
-        console.error(`Erreur envoi à ${contact.name}:`, error.message);
-        
-        let errorMessage = 'Erreur inconnue';
-        let errorCode = 'UNKNOWN_ERROR';
-        
-        const errorMsg = error.message.toLowerCase();
-        
-        if (errorMsg.includes('execution context was destroyed') ||
-            errorMsg.includes('protocol error') ||
-            errorMsg.includes('target closed') ||
-            errorMsg.includes('session closed') ||
-            errorMsg.includes('page has been closed')) {
-          errorMessage = 'Session WhatsApp fermée. Reconnectez-vous.';
-          errorCode = 'SESSION_CLOSED';
-          whatsappService.isReady = false;
-          whatsappService.qrCodeData = '';
-        } else if (errorMsg.includes('not registered')) {
-          errorMessage = 'Numéro non enregistré sur WhatsApp';
-          errorCode = 'NOT_REGISTERED';
-        } else if (errorMsg.includes('rate limit')) {
-          errorMessage = 'Limite de débit atteinte';
-          errorCode = 'RATE_LIMIT';
-        } else if (errorMsg.includes('blocked')) {
-          errorMessage = 'Numéro bloqué';
-          errorCode = 'BLOCKED';
+        try {
+          const personalizedMessage = message.replace(/{{name}}/g, contact.name);
+          await sessionManager.sendMessage(userCode, contact.phone, personalizedMessage, attachment);
+          
+          results.push({ 
+            contact: contact.name, 
+            phone: contact.phone,
+            status: 'sent',
+            sentAt: new Date().toISOString()
+          });
+          
+          successfulSends++;
+          console.log(`✅ ${i + 1}/${contacts.length} - ${contact.name}: envoyé`);
+          
+        } catch (error) {
+          console.error(`❌ ${i + 1}/${contacts.length} - Erreur envoi à ${contact.name}:`, error.message);
+          
+          results.push({ 
+            contact: contact.name, 
+            phone: contact.phone,
+            status: 'failed', 
+            error: error.message,
+            failedAt: new Date().toISOString()
+          });
+          
+          // Si erreur de session, arrêter l'envoi
+          if (error.message.includes('Session WhatsApp') || 
+              error.message.includes('Client WhatsApp')) {
+            console.log(`🛑 Arrêt de l'envoi pour ${userCode} - session fermée`);
+            break;
+          }
         }
         
-        results.push({ 
-          contact: contact.name, 
-          phone: contact.phone,
-          status: 'failed', 
-          error: errorMessage,
-          errorCode: errorCode,
-          failedAt: new Date().toISOString()
-        });
-        
-        if (errorCode === 'SESSION_CLOSED') break;
+        // Délai entre les messages
+        if (i < contacts.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        }
       }
-      
-      await new Promise(resolve => setTimeout(resolve, 3000));
-    }
     
-    // Enregistrer les statistiques et décrémenter les messages
-    if (successfulSends > 0) {
-      let userStats;
+      // Enregistrer les statistiques et décrémenter les messages UNIQUEMENT pour les envois réussis
+      let userStats = null;
       
-      if (isTestAccount) {
-        userStats = await TestAccountService.decrementMessages(testAccount, successfulSends);
-      } else {
-        userStats = await UserService.decrementMessages(req.user, successfulSends);
+      if (successfulSends > 0) {
+        if (isTestAccount) {
+          userStats = await TestAccountService.decrementMessages(testAccount, successfulSends);
+        } else {
+          userStats = await UserService.decrementMessages(req.user, successfulSends);
+          
+          // Enregistrer l'usage uniquement pour les messages envoyés avec succès
+          const usage = new Usage({
+            userId: req.user._id,
+            messagesSent: successfulSends,
+            contacts: results.filter(r => r.status === 'sent').map(r => ({
+              name: r.contact,
+              phone: r.phone,
+              status: r.status
+            }))
+          });
+          await usage.save();
+        }
         
-        const usage = new Usage({
-          userId: req.user._id,
-          messagesSent: successfulSends,
-          contacts: results.map(r => ({
-            name: r.contact,
-            phone: r.phone,
-            status: r.status
-          }))
-        });
-        await usage.save();
+        console.log(`📊 Utilisateur ${userCode}: ${successfulSends}/${contacts.length} messages envoyés avec succès`);
       }
       
-      // Ajouter les stats utilisateur à la réponse
-      res.json({ 
-        results, 
-        userStats: {
+      // Toujours retourner les résultats avec les stats si disponibles
+      const response = { results };
+      if (userStats) {
+        response.userStats = {
           messagesUsed: userStats.messagesUsed,
           remainingMessages: userStats.remainingMessages,
           dailyLimit: userStats.dailyLimit
-        }
-      });
-    } else {
-      res.json({ results });
+        };
+      }
+      
+      res.json(response);
+      
+    } finally {
+      // Déverrouiller l'envoi pour cet utilisateur
+      sessionManager.sendingLocks.delete(userCode);
+      console.log(`🔓 Envoi déverrouillé pour ${userCode}`);
     }
     
   } catch (error) {
