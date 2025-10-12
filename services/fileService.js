@@ -4,35 +4,67 @@ const { parse } = require('json2csv');
 const fs = require('fs');
 
 class FileService {
-  parseContacts(file) {
+  parseContacts(file, useMemoryStorage = false) {
     return new Promise((resolve, reject) => {
       const contacts = [];
 
       if (file.mimetype === 'text/csv') {
-        fs.createReadStream(file.path)
-          .pipe(csv())
-          .on('data', (row) => {
-            contacts.push({
-              name: row.name || row.nom,
-              phone: row.phone || row.telephone
-            });
-          })
-          .on('end', () => {
-            fs.unlinkSync(file.path);
-            resolve(contacts);
-          })
-          .on('error', reject);
+        if (useMemoryStorage) {
+          // Traiter depuis le buffer
+          const csvData = file.buffer.toString('utf8');
+          const lines = csvData.split('\n');
+          const headers = lines[0].split(',').map(h => h.trim());
+          
+          for (let i = 1; i < lines.length; i++) {
+            if (lines[i].trim()) {
+              const values = lines[i].split(',').map(v => v.trim());
+              const row = {};
+              headers.forEach((header, index) => {
+                row[header] = values[index] || '';
+              });
+              
+              contacts.push({
+                name: row.name || row.nom,
+                phone: row.phone || row.telephone
+              });
+            }
+          }
+          resolve(contacts);
+        } else {
+          // Traiter depuis le fichier
+          fs.createReadStream(file.path)
+            .pipe(csv())
+            .on('data', (row) => {
+              contacts.push({
+                name: row.name || row.nom,
+                phone: row.phone || row.telephone
+              });
+            })
+            .on('end', () => {
+              try { fs.unlinkSync(file.path); } catch (e) {}
+              resolve(contacts);
+            })
+            .on('error', reject);
+        }
       } else if (file.mimetype === 'application/json') {
         try {
-          const data = JSON.parse(fs.readFileSync(file.path, 'utf8'));
-          fs.unlinkSync(file.path);
+          const data = useMemoryStorage 
+            ? JSON.parse(file.buffer.toString('utf8'))
+            : JSON.parse(fs.readFileSync(file.path, 'utf8'));
+          
+          if (!useMemoryStorage) {
+            try { fs.unlinkSync(file.path); } catch (e) {}
+          }
           resolve(data);
         } catch (error) {
           reject(error);
         }
       } else if (file.mimetype.includes('sheet')) {
         try {
-          const workbook = XLSX.readFile(file.path);
+          const workbook = useMemoryStorage 
+            ? XLSX.read(file.buffer, { type: 'buffer' })
+            : XLSX.readFile(file.path);
+          
           const sheetName = workbook.SheetNames[0];
           const data = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
           
@@ -43,7 +75,9 @@ class FileService {
             });
           });
           
-          fs.unlinkSync(file.path);
+          if (!useMemoryStorage) {
+            try { fs.unlinkSync(file.path); } catch (e) {}
+          }
           resolve(contacts);
         } catch (error) {
           reject(error);

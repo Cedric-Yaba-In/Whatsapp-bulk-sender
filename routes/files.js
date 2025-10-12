@@ -5,9 +5,32 @@ const fileService = require('../services/fileService');
 
 const router = express.Router();
 
-const upload = multer({ 
-  dest: 'uploads/',
+// Configuration du dossier d'upload selon l'environnement
+const fs = require('fs');
+let uploadDir = process.env.NODE_ENV === 'production' ? '/tmp/uploads' : 'uploads';
+let useMemoryStorage = false;
+
+// Créer le dossier s'il n'existe pas
+try {
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+    console.log(`📁 Dossier uploads créé: ${uploadDir}`);
+  }
+} catch (error) {
+  console.warn(`⚠️ Impossible de créer le dossier uploads: ${error.message}`);
+  console.log('🔄 Utilisation du stockage en mémoire');
+  useMemoryStorage = true;
+}
+
+// Configuration de multer avec fallback
+const multerConfig = {
   limits: { fileSize: 10 * 1024 * 1024 },
+  storage: useMemoryStorage ? multer.memoryStorage() : multer.diskStorage({
+    destination: uploadDir,
+    filename: (req, file, cb) => {
+      cb(null, Date.now() + '-' + file.originalname);
+    }
+  }),
   fileFilter: (req, file, cb) => {
     if (req.route.path === '/upload') {
       const allowedTypes = /csv|json|xlsx|xls/;
@@ -30,11 +53,13 @@ const upload = multer({
     
     cb(new Error('Type de fichier non autorisé'));
   }
-});
+};
+
+const upload = multer(multerConfig);
 
 router.post('/upload', upload.single('file'), async (req, res) => {
   try {
-    const contacts = await fileService.parseContacts(req.file);
+    const contacts = await fileService.parseContacts(req.file, useMemoryStorage);
     res.json({ contacts });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -49,9 +74,10 @@ router.post('/upload-attachment', upload.single('attachment'), (req, res) => {
     
     const fileInfo = {
       filename: req.file.originalname,
-      path: req.file.path,
+      path: req.file.path || 'memory',
       size: req.file.size,
-      mimetype: req.file.mimetype
+      mimetype: req.file.mimetype,
+      buffer: useMemoryStorage ? req.file.buffer : null
     };
     
     res.json({ success: true, file: fileInfo });
