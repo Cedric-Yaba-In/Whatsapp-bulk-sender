@@ -7,11 +7,22 @@ class WhatsAppSessionManager {
   constructor() {
     this.sessions = new Map(); // userCode -> session
     this.sendingLocks = new Map(); // userCode -> boolean (pour éviter les envois concurrents)
-    this.sessionDir = path.join(__dirname, '../sessions');
+    
+    // Utiliser /tmp pour les environnements serverless
+    this.sessionDir = process.env.NODE_ENV === 'production' 
+      ? '/tmp/sessions' 
+      : path.join(__dirname, '../sessions');
     
     // Créer le dossier sessions s'il n'existe pas
-    if (!fs.existsSync(this.sessionDir)) {
-      fs.mkdirSync(this.sessionDir, { recursive: true });
+    try {
+      if (!fs.existsSync(this.sessionDir)) {
+        fs.mkdirSync(this.sessionDir, { recursive: true });
+        console.log(`📁 Dossier sessions créé: ${this.sessionDir}`);
+      }
+    } catch (error) {
+      console.warn(`⚠️ Impossible de créer le dossier sessions: ${error.message}`);
+      console.log('🔄 Utilisation du mode sans persistance');
+      this.sessionDir = null; // Mode sans persistance
     }
   }
 
@@ -48,11 +59,7 @@ class WhatsAppSessionManager {
     console.log(`🚀 Début création session WhatsApp pour ${userCode}`);
     console.log(`📁 Dossier session: ${path.join(this.sessionDir, userCode)}`);
 
-    const client = new Client({
-      authStrategy: new LocalAuth({
-        clientId: userCode,
-        dataPath: path.join(this.sessionDir, userCode)
-      }),
+    const clientConfig = {
       puppeteer: {
         headless: true,
         args: [
@@ -65,7 +72,20 @@ class WhatsAppSessionManager {
         ],
         timeout: 60000
       }
-    });
+    };
+    
+    // Ajouter l'authentification seulement si le dossier existe
+    if (this.sessionDir) {
+      clientConfig.authStrategy = new LocalAuth({
+        clientId: userCode,
+        dataPath: path.join(this.sessionDir, userCode)
+      });
+      console.log(`💾 Persistance activée pour ${userCode}`);
+    } else {
+      console.log(`⚠️ Mode sans persistance pour ${userCode}`);
+    }
+    
+    const client = new Client(clientConfig);
     
     console.log(`⚙️ Client WhatsApp créé pour ${userCode}`);
 
