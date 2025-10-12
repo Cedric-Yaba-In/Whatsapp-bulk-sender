@@ -7,9 +7,16 @@ const Usage = require('../models/Usage');
 
 const router = express.Router();
 
-router.get('/status/:userCode', (req, res) => {
+router.get('/status/:userCode', async (req, res) => {
   try {
     const { userCode } = req.params;
+    
+    // Vérifier si la session existe, sinon la créer
+    if (!sessionManager.sessions.has(userCode)) {
+      console.log(`🆕 Création automatique de session pour ${userCode}`);
+      await sessionManager.getSession(userCode);
+    }
+    
     const status = sessionManager.getSessionStatus(userCode);
     res.json({
       ...status,
@@ -28,7 +35,9 @@ router.get('/status/:userCode', (req, res) => {
 
 router.post('/reconnect', authenticateUser, async (req, res) => {
   try {
-    const userCode = req.user.code || req.user.userCode || 'TEST2024';
+    const userCode = req.user.code || 'TEST2024';
+    console.log(`🔄 Reconnexion demandée pour ${userCode}`);
+    
     await sessionManager.reconnectSession(userCode);
     res.json({ success: true, message: 'Reconnexion en cours...' });
   } catch (error) {
@@ -39,10 +48,13 @@ router.post('/reconnect', authenticateUser, async (req, res) => {
 
 router.post('/disconnect', authenticateUser, async (req, res) => {
   try {
-    const userCode = req.user.code || req.user.userCode || 'TEST2024';
+    const userCode = req.user.code || 'TEST2024';
+    console.log(`🔌 Déconnexion demandée pour ${userCode}`);
+    
     await sessionManager.disconnectSession(userCode);
     res.json({ success: true, message: 'Déconnecté avec succès' });
   } catch (error) {
+    console.error('Erreur lors de la déconnexion:', error);
     res.status(500).json({ error: 'Erreur lors de la déconnexion' });
   }
 });
@@ -56,8 +68,18 @@ router.get('/sessions-stats', (req, res) => {
 router.post('/init-session', authenticateUser, async (req, res) => {
   try {
     const userCode = req.user.code || req.user.userCode || 'TEST2024';
-    await sessionManager.getSession(userCode);
-    res.json({ success: true, message: 'Session initialisée' });
+    console.log(`🚀 Initialisation session pour ${userCode}`);
+    
+    const session = await sessionManager.getSession(userCode);
+    
+    res.json({ 
+      success: true, 
+      message: 'Session initialisée',
+      status: {
+        isReady: session.isReady,
+        loading: session.loading
+      }
+    });
   } catch (error) {
     console.error('Erreur initialisation session:', error);
     res.status(500).json({ error: 'Erreur lors de l\'initialisation' });

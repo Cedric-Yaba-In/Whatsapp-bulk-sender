@@ -2,7 +2,6 @@ const express = require('express');
 const session = require('express-session');
 const path = require('path');
 const connectDB = require('./config/database');
-const whatsappService = require('./services/whatsappService');
 const CronService = require('./services/cronService');
 const { initDefaultPacks } = require('./utils/initData');
 
@@ -76,11 +75,24 @@ app.use('/api/admin', adminRoutes);
 
 // Initialisation
 const init = async () => {
-  await initDefaultPacks();
-  await whatsappService.initialize();
-  CronService.init();
+  try {
+    console.log('🚀 Démarrage de l\'application...');
+    
+    // Initialiser les packs en arrière-plan
+    initDefaultPacks().catch(error => {
+      console.error('❌ Erreur initialisation packs:', error.message);
+    });
+    
+    // Initialiser les cron jobs
+    CronService.init();
+    
+    console.log('✅ Application initialisée - Sessions WhatsApp gérées par utilisateur');
+  } catch (error) {
+    console.error('❌ Erreur lors de l\'initialisation:', error);
+  }
 };
 
+// Démarrer l'initialisation sans bloquer
 init();
 
 const PORT = process.env.PORT || 3000;

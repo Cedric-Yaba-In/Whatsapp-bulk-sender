@@ -72,7 +72,24 @@ const nextStep = () => {
       }
     }
     
-    showStep(currentStep + 1);
+    const nextStepNumber = currentStep + 1;
+    showStep(nextStepNumber);
+    
+    // Si on arrive sur la page de connexion WhatsApp (step 1), démarrer WhatsApp
+    if (nextStepNumber === 1) {
+      console.log('🚀 Arrivée sur page connection, démarrage WhatsApp...');
+      setTimeout(() => {
+        startWhatsAppCheck();
+      }, 500); // Petit délai pour que la page soit bien affichée
+    }
+    
+    // Si on arrive sur la page d'import (step 2), setup file upload
+    if (nextStepNumber === 2) {
+      console.log('📁 Arrivée sur page import, setup file upload...');
+      setTimeout(() => {
+        setupFileUpload();
+      }, 300);
+    }
   }
 };
 
@@ -116,9 +133,13 @@ const validateUserSession = async () => {
   if (!currentUser || !currentUser.code) return false;
   
   try {
-    const response = await fetch(`/api/user-stats/${currentUser.code}`);
+    const response = await fetch('/api/verify-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userCode: currentUser.code })
+    });
     const data = await response.json();
-    return data.success;
+    return data.valid;
   } catch (error) {
     console.error('Erreur lors de la validation de session:', error);
     return false;
@@ -130,10 +151,14 @@ const refreshUserStats = async () => {
   if (!currentUser || !currentUser.code) return;
   
   try {
-    const response = await fetch(`/api/user-stats/${currentUser.code}`);
+    const response = await fetch('/api/verify-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userCode: currentUser.code })
+    });
     const data = await response.json();
     
-    if (data.success) {
+    if (data.valid) {
       console.log('Stats actualisées:', data.user);
       currentUser = data.user;
       localStorage.setItem('currentUser', JSON.stringify(currentUser));
@@ -231,7 +256,32 @@ const updateUserInfo = (user) => {
 };
 
 // Fonction pour déconnecter l'utilisateur
-const logoutUser = () => {
+const logoutUser = async () => {
+  // Déconnecter la session WhatsApp si l'utilisateur est connecté
+  if (currentUser && currentUser.code) {
+    try {
+      console.log(`🔌 Déconnexion session WhatsApp pour ${currentUser.code}`);
+      
+      const response = await fetch('/api/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userCode: currentUser.code })
+      });
+      
+      if (response.ok) {
+        console.log(`✅ Session WhatsApp déconnectée pour ${currentUser.code}`);
+      }
+    } catch (error) {
+      console.error('Erreur lors de la déconnexion WhatsApp:', error);
+    }
+  }
+  
+  // Arrêter l'intervalle de vérification du statut
+  if (statusInterval) {
+    clearInterval(statusInterval);
+    statusInterval = null;
+  }
+  
   currentUser = null;
   localStorage.removeItem('currentUser');
   hideUserStatusWidget();
@@ -308,64 +358,118 @@ document.getElementById('user-login-form').addEventListener('submit', async (e) 
 let statusInterval;
 
 const checkWhatsAppStatus = async () => {
-  if (!currentUser || !currentUser.code) return;
+  if (!currentUser || !currentUser.code) {
+    console.error('❌ checkWhatsAppStatus: currentUser manquant');
+    return;
+  }
   
   try {
+    console.log(`🔍 Vérification statut pour ${currentUser.code}`);
     const response = await fetch(`/api/status/${currentUser.code}`);
+    
+    if (!response.ok) {
+      console.error(`❌ Erreur HTTP ${response.status} lors de la vérification du statut`);
+      return;
+    }
+    
     const data = await response.json();
+    console.log(`📊 Statut reçu:`, data);
     
     // Mettre à jour la progression
-    document.getElementById('loading-progress').textContent = data.loading.progress + '%';
-    document.getElementById('loading-progress-bar').style.width = data.loading.progress + '%';
-    document.getElementById('loading-message').textContent = data.loading.message;
+    const progressEl = document.getElementById('loading-progress');
+    const progressBarEl = document.getElementById('loading-progress-bar');
+    const messageEl = document.getElementById('loading-message');
     
-    if (data.qrCode && !data.isReady) {
-      // Afficher le QR code
-      document.getElementById('loading-section').classList.add('hidden');
-      document.getElementById('qr-section').classList.remove('hidden');
-      document.getElementById('qr-code').innerHTML = `<img src="${data.qrCode}" alt="QR Code WhatsApp" class="mx-auto">`;
-    } else if (data.isReady) {
-      // WhatsApp connecté
+    if (progressEl) progressEl.textContent = data.loading.progress + '%';
+    if (progressBarEl) progressBarEl.style.width = data.loading.progress + '%';
+    if (messageEl) messageEl.textContent = data.loading.message;
+    
+    if (data.isReady) {
+      console.log('✅ WhatsApp connecté!');
+      // WhatsApp connecté - priorité absolue
       document.getElementById('loading-section').classList.add('hidden');
       document.getElementById('qr-section').classList.add('hidden');
       document.getElementById('connected-section').classList.remove('hidden');
       clearInterval(statusInterval);
+      statusInterval = null;
+    } else if (data.qrCode) {
+      console.log('📱 Affichage QR Code');
+      // Afficher le QR code seulement s'il y en a un
+      document.getElementById('loading-section').classList.add('hidden');
+      document.getElementById('connected-section').classList.add('hidden');
+      document.getElementById('qr-section').classList.remove('hidden');
+      document.getElementById('qr-code').innerHTML = `<img src="${data.qrCode}" alt="QR Code WhatsApp" class="mx-auto">`;
+    } else {
+      console.log('🔄 Affichage chargement');
+      // Afficher le chargement par défaut
+      document.getElementById('qr-section').classList.add('hidden');
+      document.getElementById('connected-section').classList.add('hidden');
+      document.getElementById('loading-section').classList.remove('hidden');
     }
   } catch (error) {
-    console.error('Erreur lors de la vérification du statut:', error);
+    console.error('❌ Erreur lors de la vérification du statut:', error);
   }
 };
 
 // Démarrer la vérification du statut quand on arrive sur la page WhatsApp
 const startWhatsAppCheck = async () => {
   if (!currentUser) {
+    console.error('❌ startWhatsAppCheck: Utilisateur non connecté');
     toastr.error('Utilisateur non connecté');
     return;
   }
   
-  console.log(`🔄 Initialisation session WhatsApp pour ${currentUser.code}`);
+  console.log(`🚀 Démarrage initialisation WhatsApp pour ${currentUser.code}`);
+  
+  // Arrêter l'ancien intervalle s'il existe
+  if (statusInterval) {
+    clearInterval(statusInterval);
+    statusInterval = null;
+  }
+  
+  // Réinitialiser l'interface
+  document.getElementById('loading-section').classList.remove('hidden');
+  document.getElementById('qr-section').classList.add('hidden');
+  document.getElementById('connected-section').classList.add('hidden');
   
   // Initialiser la session WhatsApp pour cet utilisateur
   try {
+    console.log(`📡 Appel API init-session pour ${currentUser.code}`);
+    
     const response = await fetch('/api/init-session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userCode: currentUser.code })
     });
     
+    console.log(`📡 Réponse init-session: ${response.status}`);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
     const data = await response.json();
+    console.log('📡 Données init-session:', data);
+    
     if (data.success) {
       console.log(`✅ Session initialisée pour ${currentUser.code}`);
+      toastr.success('Session WhatsApp initialisée');
     } else {
-      console.error('Erreur initialisation:', data.error);
+      console.error('❌ Erreur initialisation:', data.error);
+      toastr.error(data.error || 'Erreur lors de l\'initialisation');
+      return;
     }
   } catch (error) {
-    console.error('Erreur initialisation session:', error);
+    console.error('❌ Erreur initialisation session:', error);
     toastr.error('Erreur lors de l\'initialisation de votre session WhatsApp');
+    return;
   }
   
-  checkWhatsAppStatus();
-  statusInterval = setInterval(checkWhatsAppStatus, 2000);
+  // Démarrer la vérification du statut
+  console.log('🔄 Démarrage vérification statut...');
+  await checkWhatsAppStatus();
+  statusInterval = setInterval(checkWhatsAppStatus, 3000);
+  console.log('⏰ Intervalle de vérification démarré (3s)');
 };
 
 // Reconnexion WhatsApp
@@ -410,6 +514,12 @@ const disconnect = async () => {
   try {
     console.log(`🔌 Déconnexion WhatsApp pour ${currentUser.code}`);
     
+    // Arrêter l'intervalle de vérification du statut
+    if (statusInterval) {
+      clearInterval(statusInterval);
+      statusInterval = null;
+    }
+    
     const response = await fetch('/api/disconnect', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -418,9 +528,17 @@ const disconnect = async () => {
     
     const data = await response.json();
     if (data.success) {
+      // Réinitialiser l'interface
       document.getElementById('connected-section').classList.add('hidden');
+      document.getElementById('qr-section').classList.add('hidden');
       document.getElementById('loading-section').classList.remove('hidden');
-      toastr.success('Déconnecté avec succès');
+      
+      // Réinitialiser les valeurs de progression
+      document.getElementById('loading-progress').textContent = '0%';
+      document.getElementById('loading-progress-bar').style.width = '0%';
+      document.getElementById('loading-message').textContent = 'Déconnecté';
+      
+      toastr.success('Session WhatsApp déconnectée avec succès');
     } else {
       toastr.error(data.error || 'Erreur lors de la déconnexion');
     }
@@ -446,10 +564,22 @@ const setupFileUpload = () => {
   const fileSelected = document.getElementById('file-selected');
   const uploadBtn = document.getElementById('upload-btn');
   
-  if (!dropZone || !fileInput) return;
+  console.log('📁 Setup file upload - Elements:', {
+    dropZone: !!dropZone,
+    fileInput: !!fileInput,
+    dropContent: !!dropContent,
+    fileSelected: !!fileSelected,
+    uploadBtn: !!uploadBtn
+  });
+  
+  if (!dropZone || !fileInput) {
+    console.error('❌ Elements manquants pour file upload');
+    return;
+  }
   
   // Click sur la zone de drop
-  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.removeEventListener('click', handleDropZoneClick);
+  dropZone.addEventListener('click', handleDropZoneClick);
   
   // Drag & Drop
   dropZone.addEventListener('dragover', (e) => {
@@ -471,15 +601,33 @@ const setupFileUpload = () => {
   });
   
   // Sélection de fichier
-  fileInput.addEventListener('change', (e) => {
-    if (e.target.files.length > 0) {
-      handleFileSelection(e.target.files[0]);
-    }
-  });
+  fileInput.removeEventListener('change', handleFileInputChange);
+  fileInput.addEventListener('change', handleFileInputChange);
   
   // Upload du fichier
   if (uploadBtn) {
-    uploadBtn.addEventListener('click', (e)=>uploadFile(e));
+    uploadBtn.removeEventListener('click', uploadFile);
+    uploadBtn.addEventListener('click', uploadFile);
+    console.log('✅ Event listener ajouté sur upload-btn');
+  }
+  
+  console.log('✅ File upload setup terminé');
+};
+
+// Fonctions séparées pour les événements
+const handleDropZoneClick = (e) => {
+  console.log('💆 Click sur drop zone');
+  e.preventDefault();
+  const fileInput = document.getElementById('file-input');
+  if (fileInput) {
+    fileInput.click();
+  }
+};
+
+const handleFileInputChange = (e) => {
+  console.log('📄 Fichier sélectionné:', e.target.files.length);
+  if (e.target.files.length > 0) {
+    handleFileSelection(e.target.files[0]);
   }
 };
 
@@ -567,26 +715,43 @@ const resetImport = () => {
 
 // Fonctions pour la rédaction de message
 const setupMessageCompose = () => {
+  console.log('✍️ Setup message compose...');
+  
   const messageInput = document.getElementById('message-input');
   const messagePreview = document.getElementById('message-preview');
   const continueBtn = document.getElementById('continue-to-send');
   const attachmentInput = document.getElementById('attachment-input');
   const attachmentZone = document.getElementById('attachment-drop-zone');
   
+  console.log('✍️ Elements message:', {
+    messageInput: !!messageInput,
+    messagePreview: !!messagePreview,
+    continueBtn: !!continueBtn,
+    attachmentInput: !!attachmentInput,
+    attachmentZone: !!attachmentZone
+  });
+  
   if (messageInput && messagePreview) {
-    messageInput.addEventListener('input', () => {
-      const message = messageInput.value;
-      const preview = message.replace(/{{name}}/g, '<span class="bg-yellow-200 px-1 rounded">John Doe</span>') || 'Tapez votre message pour voir l\'aperçu...';
-      messagePreview.innerHTML = preview;
-      
-      if (continueBtn) {
-        continueBtn.disabled = message.trim().length === 0;
-      }
-    });
+    // Supprimer les anciens événements
+    messageInput.removeEventListener('input', handleMessageInput);
+    messageInput.addEventListener('input', handleMessageInput);
+    
+    // Initialiser l'aperçu
+    handleMessageInput();
+  }
+  
+  if (continueBtn) {
+    // Supprimer l'ancien événement
+    continueBtn.removeEventListener('click', handleContinueToSend);
+    continueBtn.addEventListener('click', handleContinueToSend);
+    console.log('✅ Event listener ajouté sur continue-to-send');
   }
   
   if (attachmentZone && attachmentInput) {
-    attachmentZone.addEventListener('click', () => attachmentInput.click());
+    attachmentZone.addEventListener('click', () => {
+      console.log('💆 Click sur attachment zone');
+      attachmentInput.click();
+    });
     
     attachmentInput.addEventListener('change', (e) => {
       if (e.target.files.length > 0) {
@@ -594,6 +759,32 @@ const setupMessageCompose = () => {
       }
     });
   }
+  
+  console.log('✅ Message compose setup terminé');
+};
+
+// Fonction séparée pour gérer l'input du message
+const handleMessageInput = () => {
+  const messageInput = document.getElementById('message-input');
+  const messagePreview = document.getElementById('message-preview');
+  const continueBtn = document.getElementById('continue-to-send');
+  
+  if (!messageInput || !messagePreview) return;
+  
+  const message = messageInput.value;
+  const preview = message.replace(/{{name}}/g, '<span class="bg-yellow-200 px-1 rounded">John Doe</span>') || 'Tapez votre message pour voir l\'aperçu...';
+  messagePreview.innerHTML = preview;
+  
+  if (continueBtn) {
+    continueBtn.disabled = message.trim().length === 0;
+  }
+};
+
+// Fonction séparée pour gérer le clic sur continuer
+const handleContinueToSend = (e) => {
+  console.log('🚀 Click sur continue-to-send');
+  e.preventDefault();
+  nextStep();
 };
 
 const handleAttachmentSelection = (file) => {
@@ -934,7 +1125,32 @@ const hideUserStatusWidget = () => {
   }
 };
 
-const resetApp = () => {
+const resetApp = async () => {
+  // Déconnecter la session WhatsApp si l'utilisateur est connecté
+  if (currentUser && currentUser.code) {
+    try {
+      console.log(`🔌 Déconnexion session WhatsApp pour ${currentUser.code}`);
+      
+      const response = await fetch('/api/disconnect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userCode: currentUser.code })
+      });
+      
+      if (response.ok) {
+        console.log(`✅ Session WhatsApp déconnectée pour ${currentUser.code}`);
+      }
+    } catch (error) {
+      console.error('Erreur lors de la déconnexion WhatsApp:', error);
+    }
+  }
+  
+  // Arrêter l'intervalle de vérification du statut
+  if (statusInterval) {
+    clearInterval(statusInterval);
+    statusInterval = null;
+  }
+  
   contacts = [];
   window.attachmentFile = null;
   
@@ -974,6 +1190,36 @@ const newSending = () => {
   // Revenir à l'étape d'import
   showStep(2);
   toastr.info('Prêt pour un nouvel envoi');
+};
+
+// Fonction pour initialiser tous les événements
+const initializeAllEvents = () => {
+  console.log('🔧 Initialisation de tous les événements...');
+  
+  // Initialiser file upload
+  setupFileUpload();
+  
+  // Initialiser message compose
+  setupMessageCompose();
+  
+  // Vérifier tous les boutons critiques
+  const criticalButtons = [
+    { id: 'upload-btn', name: 'Upload' },
+    { id: 'continue-to-send', name: 'Continue to send' },
+    { id: 'file-input', name: 'File input' },
+    { id: 'drop-zone', name: 'Drop zone' }
+  ];
+  
+  criticalButtons.forEach(btn => {
+    const element = document.getElementById(btn.id);
+    if (element) {
+      console.log(`✅ ${btn.name} trouvé`);
+    } else {
+      console.error(`❌ ${btn.name} manquant`);
+    }
+  });
+  
+  console.log('✅ Initialisation des événements terminée');
 };
 
 // Initialisation
@@ -1026,8 +1272,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   showStep(0);
   
   // Setup des composants
-  setupFileUpload();
-  setupMessageCompose();
+  initializeAllEvents();
   
   // Observer pour démarrer WhatsApp quand on arrive sur la page
   const observer = new MutationObserver((mutations) => {
@@ -1035,9 +1280,23 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
         const target = mutation.target;
         if (target.id === 'page-connection' && !target.classList.contains('hidden')) {
+          console.log('🔄 Page connection affichée, démarrage WhatsApp...');
           startWhatsAppCheck();
+        } else if (target.id === 'page-import' && !target.classList.contains('hidden')) {
+          console.log('📁 Page import affichée, setup file upload...');
+          setTimeout(() => {
+            setupFileUpload();
+          }, 100);
+        } else if (target.id === 'page-message' && !target.classList.contains('hidden')) {
+          console.log('✍️ Page message affichée, setup message compose...');
+          setTimeout(() => {
+            setupMessageCompose();
+          }, 100);
         } else if (target.id === 'page-send' && !target.classList.contains('hidden')) {
-          setupSendPage();
+          console.log('📤 Page send affichée, setup...');
+          setTimeout(() => {
+            setupSendPage();
+          }, 100);
         }
       }
     });
@@ -1046,10 +1305,26 @@ document.addEventListener('DOMContentLoaded', async () => {
   const connectionPage = document.getElementById('page-connection');
   if (connectionPage) {
     observer.observe(connectionPage, { attributes: true });
+    console.log('👁️ Observer ajouté sur page-connection');
+  } else {
+    console.error('❌ Page connection non trouvée');
+  }
+  
+  const importPage = document.getElementById('page-import');
+  if (importPage) {
+    observer.observe(importPage, { attributes: true });
+    console.log('👁️ Observer ajouté sur page-import');
+  }
+  
+  const messagePage = document.getElementById('page-message');
+  if (messagePage) {
+    observer.observe(messagePage, { attributes: true });
+    console.log('👁️ Observer ajouté sur page-message');
   }
   
   const sendPage = document.getElementById('page-send');
   if (sendPage) {
     observer.observe(sendPage, { attributes: true });
+    console.log('👁️ Observer ajouté sur page-send');
   }
 });

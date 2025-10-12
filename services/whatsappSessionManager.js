@@ -21,6 +21,8 @@ class WhatsAppSessionManager {
       throw new Error('UserCode requis pour créer une session');
     }
     
+    console.log(`🔍 Demande session pour ${userCode}`);
+    
     // Vérifier si la session existe déjà
     if (this.sessions.has(userCode)) {
       const existingSession = this.sessions.get(userCode);
@@ -29,14 +31,22 @@ class WhatsAppSessionManager {
     }
 
     console.log(`🆕 Création nouvelle session pour ${userCode}`);
-    const session = await this.createSession(userCode);
-    this.sessions.set(userCode, session);
-    return session;
+    
+    try {
+      const session = await this.createSession(userCode);
+      this.sessions.set(userCode, session);
+      console.log(`✅ Session ajoutée à la map pour ${userCode}`);
+      return session;
+    } catch (error) {
+      console.error(`❌ Erreur création session ${userCode}:`, error);
+      throw error;
+    }
   }
 
   // Créer une nouvelle session WhatsApp
   async createSession(userCode) {
-    console.log(`🔄 Création session WhatsApp pour ${userCode}`);
+    console.log(`🚀 Début création session WhatsApp pour ${userCode}`);
+    console.log(`📁 Dossier session: ${path.join(this.sessionDir, userCode)}`);
 
     const client = new Client({
       authStrategy: new LocalAuth({
@@ -48,14 +58,16 @@ class WhatsAppSessionManager {
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--disable-gpu'
-        ]
+          '--disable-extensions',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-renderer-backgrounding'
+        ],
+        timeout: 60000
       }
     });
+    
+    console.log(`⚙️ Client WhatsApp créé pour ${userCode}`);
 
     const session = {
       client: client,
@@ -70,14 +82,27 @@ class WhatsAppSessionManager {
     };
 
     // Événements du client
+    client.on('loading_screen', (percent, message) => {
+      console.log(`🔄 ${userCode} - Chargement: ${percent}% - ${message}`);
+      session.loading.progress = Math.max(session.loading.progress, percent || 0);
+      session.loading.message = message || 'Chargement...';
+      
+      // Supprimer le QR code quand le chargement commence
+      if (percent > 50) {
+        session.qrCode = null;
+      }
+    });
+    
     client.on('qr', async (qr) => {
       console.log(`📱 QR Code généré pour ${userCode}`);
       try {
         session.qrCode = await qrcode.toDataURL(qr);
         session.loading.message = 'Scannez le QR code avec WhatsApp';
         session.loading.progress = 50;
+        console.log(`✅ QR Code converti en DataURL pour ${userCode}`);
       } catch (error) {
-        console.error(`Erreur génération QR pour ${userCode}:`, error);
+        console.error(`❌ Erreur génération QR pour ${userCode}:`, error);
+        session.loading.message = 'Erreur génération QR Code';
       }
     });
 
@@ -101,6 +126,7 @@ class WhatsAppSessionManager {
       session.isReady = false;
       session.qrCode = null;
       session.loading.message = 'Échec de l\'authentification';
+      session.loading.progress = 0;
     });
 
     client.on('disconnected', (reason) => {
@@ -108,19 +134,35 @@ class WhatsAppSessionManager {
       session.isReady = false;
       session.qrCode = null;
       session.loading.progress = 0;
-      session.loading.message = 'Déconnecté';
+      session.loading.message = 'Déconnecté: ' + reason;
+    });
+    
+    // Gestion des erreurs
+    client.on('error', (error) => {
+      console.error(`❌ Erreur client ${userCode}:`, error);
+      session.loading.message = 'Erreur: ' + error.message;
+      session.loading.progress = 0;
     });
 
     // Initialiser le client
     try {
-      await client.initialize();
+      console.log(`🔄 Initialisation client pour ${userCode}...`);
+      session.loading.progress = 10;
+      session.loading.message = 'Démarrage du client WhatsApp...';
+      
+      // Initialiser sans timeout artificiel
+      client.initialize();
+      
+      console.log(`✅ Initialisation lancée pour ${userCode}`);
       session.loading.progress = 25;
       session.loading.message = 'Connexion en cours...';
     } catch (error) {
-      console.error(`Erreur initialisation ${userCode}:`, error);
-      session.loading.message = 'Erreur d\'initialisation';
+      console.error(`❌ Erreur initialisation ${userCode}:`, error);
+      session.loading.message = 'Erreur: ' + error.message;
+      session.loading.progress = 0;
     }
 
+    console.log(`🎯 Session créée pour ${userCode}, statut: ${session.isReady ? 'prêt' : 'en attente'}`);
     return session;
   }
 

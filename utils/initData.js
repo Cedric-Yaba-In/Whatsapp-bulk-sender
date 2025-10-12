@@ -3,7 +3,26 @@ const User = require('../models/User');
 
 const initDefaultPacks = async () => {
   try {
-    console.log('Vérification des packs par défaut...');
+    console.log('📦 Vérification des packs par défaut...');
+    
+    // Attendre que MongoDB soit connecté
+    const mongoose = require('mongoose');
+    if (mongoose.connection.readyState !== 1) {
+      console.log('⏳ Attente de la connexion MongoDB...');
+      await new Promise((resolve) => {
+        mongoose.connection.on('connected', resolve);
+        // Timeout après 30 secondes
+        setTimeout(() => {
+          console.log('⚠️ Timeout connexion MongoDB, initialisation reportée');
+          resolve();
+        }, 30000);
+      });
+    }
+    
+    if (mongoose.connection.readyState !== 1) {
+      console.log('❌ MongoDB non connecté, initialisation annulée');
+      return;
+    }
     
     // Vérifier si les packs existent déjà
     const existingPacks = await Pack.countDocuments();
