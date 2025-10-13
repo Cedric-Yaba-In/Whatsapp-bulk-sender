@@ -10,6 +10,7 @@ const router = express.Router();
 router.get('/status/:userCode', async (req, res) => {
   try {
     const { userCode } = req.params;
+    console.log(`🔍 Demande statut pour ${userCode}`);
     
     // Vérifier si la session existe, sinon la créer
     if (!sessionManager.sessions.has(userCode)) {
@@ -18,17 +19,36 @@ router.get('/status/:userCode', async (req, res) => {
     }
     
     const status = sessionManager.getSessionStatus(userCode);
-    res.json({
-      ...status,
-      timestamp: Date.now()
+    
+    // Log détaillé du statut
+    console.log(`📊 Statut ${userCode}:`, {
+      isReady: status.isReady,
+      hasQR: !!status.qrCode,
+      qrLength: status.qrCode ? status.qrCode.length : 0,
+      progress: status.loading.progress,
+      message: status.loading.message
     });
+    
+    const response = {
+      isReady: Boolean(status.isReady),
+      qrCode: status.qrCode || null,
+      loading: {
+        progress: Number(status.loading.progress) || 0,
+        message: String(status.loading.message) || 'Initialisation...'
+      },
+      userCode: userCode,
+      timestamp: Date.now()
+    };
+    
+    res.json(response);
   } catch (error) {
-    console.error('Erreur dans /api/status:', error.message);
+    console.error(`❌ Erreur dans /api/status pour ${req.params.userCode}:`, error.message);
     res.json({ 
       isReady: false, 
       qrCode: null,
       timestamp: Date.now(),
-      loading: { progress: 0, message: 'Erreur de connexion' }
+      loading: { progress: 0, message: 'Erreur: ' + error.message },
+      userCode: req.params.userCode
     });
   }
 });
@@ -112,9 +132,15 @@ router.post('/send-messages', authenticateUser, async (req, res) => {
     let testAccount = null;
     
     // Vérifier si c'est un compte test par IP
-    if (req.user.code === 'TEST2024') {
+    if (TestAccountService.isTestCode(req.user.code)) {
       isTestAccount = true;
-      testAccount = await TestAccountService.getOrCreateTestAccount(clientIp);
+      testAccount = await TestAccountService.getTestAccountByCode(req.user.code, clientIp);
+      
+      if (!testAccount) {
+        return res.status(400).json({ 
+          error: 'Code de test invalide pour cette adresse IP' 
+        });
+      }
       
       // Vérifier la limite pour le compte test
       if (!TestAccountService.canSendMessages(testAccount, contacts.length)) {

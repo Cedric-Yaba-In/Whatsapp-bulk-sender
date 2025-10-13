@@ -364,51 +364,90 @@ const checkWhatsAppStatus = async () => {
   }
   
   try {
-    console.log(`🔍 Vérification statut pour ${currentUser.code}`);
     const response = await fetch(`/api/status/${currentUser.code}`);
     
     if (!response.ok) {
       console.error(`❌ Erreur HTTP ${response.status} lors de la vérification du statut`);
+      showConnectionError(`Erreur HTTP ${response.status}`);
       return;
     }
     
     const data = await response.json();
-    console.log(`📊 Statut reçu:`, data);
+    console.log(`📊 Statut ${currentUser.code}:`, {
+      isReady: data.isReady,
+      hasQR: !!data.qrCode,
+      progress: data.loading.progress,
+      message: data.loading.message
+    });
     
-    // Mettre à jour la progression
-    const progressEl = document.getElementById('loading-progress');
-    const progressBarEl = document.getElementById('loading-progress-bar');
-    const messageEl = document.getElementById('loading-message');
+    // Mettre à jour la progression dans tous les cas
+    updateProgressDisplay(data.loading);
     
-    if (progressEl) progressEl.textContent = data.loading.progress + '%';
-    if (progressBarEl) progressBarEl.style.width = data.loading.progress + '%';
-    if (messageEl) messageEl.textContent = data.loading.message;
-    
-    if (data.isReady) {
-      console.log('✅ WhatsApp connecté!');
-      // WhatsApp connecté - priorité absolue
-      document.getElementById('loading-section').classList.add('hidden');
-      document.getElementById('qr-section').classList.add('hidden');
-      document.getElementById('connected-section').classList.remove('hidden');
-      clearInterval(statusInterval);
-      statusInterval = null;
-    } else if (data.qrCode) {
-      console.log('📱 Affichage QR Code');
-      // Afficher le QR code seulement s'il y en a un
-      document.getElementById('loading-section').classList.add('hidden');
-      document.getElementById('connected-section').classList.add('hidden');
-      document.getElementById('qr-section').classList.remove('hidden');
-      document.getElementById('qr-code').innerHTML = `<img src="${data.qrCode}" alt="QR Code WhatsApp" class="mx-auto">`;
+    // Logique d'état stricte
+    if (data.isReady === true) {
+      console.log('✅ État: WhatsApp CONNECTÉ');
+      showConnectedState();
+    } else if (data.qrCode && data.qrCode.length > 0) {
+      console.log('📱 État: QR CODE disponible');
+      showQRCodeState(data.qrCode);
     } else {
-      console.log('🔄 Affichage chargement');
-      // Afficher le chargement par défaut
-      document.getElementById('qr-section').classList.add('hidden');
-      document.getElementById('connected-section').classList.add('hidden');
-      document.getElementById('loading-section').classList.remove('hidden');
+      console.log('🔄 État: CHARGEMENT en cours');
+      showLoadingState();
     }
+    
   } catch (error) {
     console.error('❌ Erreur lors de la vérification du statut:', error);
+    showConnectionError('Erreur de connexion');
   }
+};
+
+// Fonctions d'état séparées pour plus de clarté
+const updateProgressDisplay = (loading) => {
+  const progressEl = document.getElementById('loading-progress');
+  const progressBarEl = document.getElementById('loading-progress-bar');
+  const messageEl = document.getElementById('loading-message');
+  
+  if (progressEl) progressEl.textContent = (loading.progress || 0) + '%';
+  if (progressBarEl) progressBarEl.style.width = (loading.progress || 0) + '%';
+  if (messageEl) messageEl.textContent = loading.message || 'Chargement...';
+};
+
+const showLoadingState = () => {
+  document.getElementById('loading-section').classList.remove('hidden');
+  document.getElementById('qr-section').classList.add('hidden');
+  document.getElementById('connected-section').classList.add('hidden');
+};
+
+const showQRCodeState = (qrCodeData) => {
+  document.getElementById('loading-section').classList.add('hidden');
+  document.getElementById('qr-section').classList.remove('hidden');
+  document.getElementById('connected-section').classList.add('hidden');
+  
+  const qrCodeEl = document.getElementById('qr-code');
+  if (qrCodeEl) {
+    qrCodeEl.innerHTML = `<img src="${qrCodeData}" alt="QR Code WhatsApp" class="mx-auto max-w-xs">`;
+  }
+};
+
+const showConnectedState = () => {
+  document.getElementById('loading-section').classList.add('hidden');
+  document.getElementById('qr-section').classList.add('hidden');
+  document.getElementById('connected-section').classList.remove('hidden');
+  
+  // Arrêter la vérification du statut
+  if (statusInterval) {
+    clearInterval(statusInterval);
+    statusInterval = null;
+    console.log('⏹️ Arrêt de la vérification du statut - WhatsApp connecté');
+  }
+};
+
+const showConnectionError = (errorMessage) => {
+  const messageEl = document.getElementById('loading-message');
+  if (messageEl) {
+    messageEl.textContent = 'Erreur: ' + errorMessage;
+  }
+  showLoadingState();
 };
 
 // Démarrer la vérification du statut quand on arrive sur la page WhatsApp
@@ -467,9 +506,13 @@ const startWhatsAppCheck = async () => {
   
   // Démarrer la vérification du statut
   console.log('🔄 Démarrage vérification statut...');
+  
+  // Vérification immédiate
   await checkWhatsAppStatus();
-  statusInterval = setInterval(checkWhatsAppStatus, 3000);
-  console.log('⏰ Intervalle de vérification démarré (3s)');
+  
+  // Puis vérification régulière toutes les 2 secondes
+  statusInterval = setInterval(checkWhatsAppStatus, 2000);
+  console.log('⏰ Intervalle de vérification démarré (2s)');
 };
 
 // Reconnexion WhatsApp
@@ -480,10 +523,17 @@ const forceReconnect = async () => {
   }
   
   try {
-    document.getElementById('connected-section').classList.add('hidden');
-    document.getElementById('loading-section').classList.remove('hidden');
+    console.log(`🔄 Début reconnexion WhatsApp pour ${currentUser.code}`);
     
-    console.log(`🔄 Reconnexion WhatsApp pour ${currentUser.code}`);
+    // Arrêter l'ancien intervalle
+    if (statusInterval) {
+      clearInterval(statusInterval);
+      statusInterval = null;
+    }
+    
+    // Réinitialiser l'interface
+    showLoadingState();
+    updateProgressDisplay({ progress: 0, message: 'Reconnexion en cours...' });
     
     const response = await fetch('/api/reconnect', {
       method: 'POST',
@@ -493,14 +543,22 @@ const forceReconnect = async () => {
     
     const data = await response.json();
     if (data.success) {
+      console.log(`✅ Reconnexion lancée pour ${currentUser.code}`);
       toastr.success('Reconnexion en cours...');
-      startWhatsAppCheck();
+      
+      // Redémarrer la vérification du statut
+      setTimeout(() => {
+        startWhatsAppCheck();
+      }, 1000);
     } else {
+      console.error(`❌ Erreur reconnexion ${currentUser.code}:`, data.error);
       toastr.error(data.error || 'Erreur lors de la reconnexion');
+      updateProgressDisplay({ progress: 0, message: 'Erreur de reconnexion' });
     }
   } catch (error) {
     console.error('Erreur reconnexion:', error);
     toastr.error('Erreur lors de la reconnexion');
+    updateProgressDisplay({ progress: 0, message: 'Erreur de connexion' });
   }
 };
 
@@ -1222,6 +1280,38 @@ const initializeAllEvents = () => {
   console.log('✅ Initialisation des événements terminée');
 };
 
+// Générer et afficher le code de test pour l'IP actuelle
+const generateAndDisplayTestCode = async () => {
+  try {
+    // Obtenir l'IP du client
+    const response = await fetch('/api/get-client-ip');
+    const data = await response.json();
+    
+    if (data.ip) {
+      // Générer le code de test basé sur l'IP
+      const cleanIp = data.ip.replace(/[^0-9]/g, '');
+      const hash = cleanIp.slice(-6).padStart(6, '0');
+      const testCode = `TEST${hash}`;
+      
+      // Afficher le code généré
+      const codeElement = document.getElementById('generated-test-code');
+      const inputElement = document.getElementById('user-code');
+      
+      if (codeElement) {
+        codeElement.textContent = testCode;
+      }
+      
+      if (inputElement && inputElement.value === 'TEST2024') {
+        inputElement.value = testCode;
+      }
+      
+      console.log(`🧪 Code de test généré pour IP ${data.ip}: ${testCode}`);
+    }
+  } catch (error) {
+    console.log('📝 Utilisation du code de test par défaut: TEST2024');
+  }
+};
+
 // Initialisation
 document.addEventListener('DOMContentLoaded', async () => {
   // S'assurer que la première page est visible dès le début
@@ -1270,6 +1360,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Afficher le formulaire de connexion si pas d'utilisateur connecté
   showStep(0);
+  
+  // Générer le code de test
+  await generateAndDisplayTestCode();
   
   // Setup des composants
   initializeAllEvents();

@@ -1,13 +1,24 @@
 const TestAccount = require('../models/TestAccount');
 
 class TestAccountService {
+  // Générer un code de test unique basé sur l'IP
+  static generateTestCode(ipAddress) {
+    const cleanIp = ipAddress.replace(/[^0-9]/g, '');
+    const hash = cleanIp.slice(-6).padStart(6, '0');
+    return `TEST${hash}`;
+  }
+  
   static async getOrCreateTestAccount(ipAddress) {
     let testAccount = await TestAccount.findOne({ ipAddress });
     
     if (!testAccount) {
-      testAccount = new TestAccount({ ipAddress });
+      const testCode = this.generateTestCode(ipAddress);
+      testAccount = new TestAccount({ 
+        ipAddress,
+        testCode 
+      });
       await testAccount.save();
-      console.log(`🆕 Nouveau compte test créé pour IP: ${ipAddress}`);
+      console.log(`🆕 Nouveau compte test créé pour IP: ${ipAddress} - Code: ${testCode}`);
     }
     
     return await this.checkAndResetDailyMessages(testAccount);
@@ -53,14 +64,33 @@ class TestAccountService {
     console.log(`📊 Test account IP ${testAccount.ipAddress}: utilisés=${testAccount.messagesUsedToday}, restants=${remainingMessages}/5`);
     
     return {
-      name: 'Compte Test',
+      name: `Compte Test (${testAccount.testCode || 'TEST2024'})`,
       pack: 'Test (IP)',
       dailyLimit: 5,
       messagesUsedToday: testAccount.messagesUsedToday,
       remainingMessages: remainingMessages,
       resetDate: testAccount.lastResetDate,
-      code: 'TEST2024'
+      code: testAccount.testCode || 'TEST2024',
+      ipAddress: testAccount.ipAddress
     };
+  }
+  
+  // Vérifier si un code est un code de test
+  static isTestCode(userCode) {
+    return userCode === 'TEST2024' || userCode.startsWith('TEST');
+  }
+  
+  // Obtenir le compte de test par code
+  static async getTestAccountByCode(userCode, ipAddress) {
+    if (userCode === 'TEST2024') {
+      return await this.getOrCreateTestAccount(ipAddress);
+    } else if (userCode.startsWith('TEST')) {
+      const testAccount = await TestAccount.findOne({ testCode: userCode });
+      if (testAccount && testAccount.ipAddress === ipAddress) {
+        return await this.checkAndResetDailyMessages(testAccount);
+      }
+    }
+    return null;
   }
 }
 

@@ -56,17 +56,25 @@ router.post('/verify-user', async (req, res) => {
   try {
     const clientIp = req.ip || req.connection.remoteAddress || req.socket.remoteAddress || '127.0.0.1';
     
-    // Si c'est le code test, utiliser le système par IP
-    if (userCode.toUpperCase() === 'TEST2024') {
-      const testAccount = await TestAccountService.getOrCreateTestAccount(clientIp);
-      const userStats = TestAccountService.getTestAccountStats(testAccount);
+    // Si c'est un code test, utiliser le système par IP
+    if (TestAccountService.isTestCode(userCode.toUpperCase())) {
+      const testAccount = await TestAccountService.getTestAccountByCode(userCode.toUpperCase(), clientIp);
       
-      return res.json({
-        valid: true,
-        user: userStats,
-        isTestAccount: true,
-        ipAddress: clientIp
-      });
+      if (testAccount) {
+        const userStats = TestAccountService.getTestAccountStats(testAccount);
+        
+        return res.json({
+          valid: true,
+          user: userStats,
+          isTestAccount: true,
+          ipAddress: clientIp
+        });
+      } else {
+        return res.json({ 
+          valid: false, 
+          message: 'Code de test invalide pour cette adresse IP' 
+        });
+      }
     }
     
     let user = await User.findOne({ code: userCode.toUpperCase(), isActive: true }).populate('packId');

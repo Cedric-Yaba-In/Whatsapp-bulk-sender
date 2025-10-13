@@ -8,10 +8,11 @@ const authenticateUser = async (req, res, next) => {
   }
   
   try {
-    // Si c'est le code test, créer un utilisateur virtuel
-    if (userCode.toUpperCase() === 'TEST2024') {
+    // Si c'est un code test, créer un utilisateur virtuel
+    const TestAccountService = require('../services/testAccountService');
+    if (TestAccountService.isTestCode(userCode.toUpperCase())) {
       req.user = {
-        code: 'TEST2024',
+        code: userCode.toUpperCase(),
         name: 'Compte Test',
         isTestAccount: true
       };

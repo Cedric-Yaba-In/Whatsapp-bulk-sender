@@ -6,6 +6,11 @@ const testAccountSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
+  testCode: {
+    type: String,
+    unique: true,
+    sparse: true
+  },
   messagesUsedToday: {
     type: Number,
     default: 0

@@ -71,6 +71,7 @@ app.get('/admin', (req, res) => {
 app.use('/api', whatsappRoutes);
 app.use('/api', fileRoutes);
 app.use('/api', userRoutes);
+app.use('/api', require('./routes/client-ip'));
 app.use('/api/admin', adminRoutes);
 
 // Initialisation
