@@ -5,15 +5,13 @@ const fs = require('fs');
 
 class WhatsAppSessionManager {
   constructor() {
-    this.sessions = new Map(); // userCode -> session
-    this.sendingLocks = new Map(); // userCode -> boolean (pour éviter les envois concurrents)
+    this.sessions = new Map();
+    this.sendingLocks = new Map();
     
-    // Utiliser /tmp pour les environnements serverless
     this.sessionDir = process.env.NODE_ENV === 'production' 
       ? '/tmp/sessions' 
       : path.join(__dirname, '../sessions');
     
-    // Créer le dossier sessions s'il n'existe pas
     try {
       if (!fs.existsSync(this.sessionDir)) {
         fs.mkdirSync(this.sessionDir, { recursive: true });
@@ -21,8 +19,7 @@ class WhatsAppSessionManager {
       }
     } catch (error) {
       console.warn(`⚠️ Impossible de créer le dossier sessions: ${error.message}`);
-      console.log('🔄 Utilisation du mode sans persistance');
-      this.sessionDir = null; // Mode sans persistance
+      this.sessionDir = null;
     }
   }
 
@@ -65,12 +62,14 @@ class WhatsAppSessionManager {
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
-          '--disable-extensions',
-          '--disable-background-timer-throttling',
-          '--disable-backgrounding-occluded-windows',
-          '--disable-renderer-backgrounding'
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--single-process',
+          '--disable-gpu'
         ],
-        timeout: 60000
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined
       }
     };
     

@@ -96,17 +96,23 @@ const init = async () => {
 // Démarrer l'initialisation sans bloquer
 init();
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log('Routes disponibles:');
-  console.log('- GET /api/status');
-  console.log('- POST /api/reconnect');
-  console.log('- POST /api/disconnect');
-  console.log('- POST /api/upload');
-  console.log('- POST /api/upload-attachment');
-  console.log('- POST /api/send-messages');
-  console.log('- GET /api/template/:format');
-  console.log('- GET /admin (admin: admin/admin123)');
-  console.log('- GET /packs (page publique des packs)');
-});
+if (process.env.NODE_ENV !== 'production') {
+  // En local (ex: localhost)
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+    console.log('Routes disponibles:');
+    console.log('- GET /api/status');
+    console.log('- POST /api/reconnect');
+    console.log('- POST /api/disconnect');
+    console.log('- POST /api/upload');
+    console.log('- POST /api/upload-attachment');
+    console.log('- POST /api/send-messages');
+    console.log('- GET /api/template/:format');
+    console.log('- GET /admin (admin: admin/admin123)');
+    console.log('- GET /packs (page publique des packs)');
+  });
+
+} else {
+  // En production (Passenger sur PlanetHoster)
+  module.exports = app;
+}
