@@ -85,10 +85,25 @@ class TestAccountService {
     if (userCode === 'TEST2024') {
       return await this.getOrCreateTestAccount(ipAddress);
     } else if (userCode.startsWith('TEST')) {
-      const testAccount = await TestAccount.findOne({ testCode: userCode });
-      if (testAccount && testAccount.ipAddress === ipAddress) {
-        return await this.checkAndResetDailyMessages(testAccount);
+      // Pour les codes TEST personnalisés, créer ou récupérer le compte pour cette IP
+      let testAccount = await TestAccount.findOne({ ipAddress });
+      
+      if (!testAccount) {
+        // Créer un nouveau compte avec le code fourni
+        testAccount = new TestAccount({ 
+          ipAddress,
+          testCode: userCode 
+        });
+        await testAccount.save();
+        console.log(`🆕 Nouveau compte test créé pour IP: ${ipAddress} - Code: ${userCode}`);
+      } else if (testAccount.testCode !== userCode) {
+        // Mettre à jour le code si différent
+        testAccount.testCode = userCode;
+        await testAccount.save();
+        console.log(`🔄 Code test mis à jour pour IP: ${ipAddress} - Nouveau code: ${userCode}`);
       }
+      
+      return await this.checkAndResetDailyMessages(testAccount);
     }
     return null;
   }
