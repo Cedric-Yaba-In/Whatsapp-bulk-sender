@@ -67,11 +67,12 @@ class QueueService extends EventEmitter {
     job.status = 'processing';
     this.emit('jobStarted', job);
 
-    const whatsappService = require('./whatsappService');
+    const sessionManager = require('./whatsappSessionManager');
     
-    // Vérifier que WhatsApp est connecté
-    if (!whatsappService.isReady) {
-      throw new Error('WhatsApp non connecté');
+    // Vérifier que la session WhatsApp est connectée
+    const session = sessionManager.sessions.get(job.userCode);
+    if (!session || !session.isReady) {
+      throw new Error(`Session WhatsApp non connectée pour ${job.userCode}`);
     }
 
     const results = [];
@@ -82,7 +83,7 @@ class QueueService extends EventEmitter {
       
       try {
         const personalizedMessage = job.message.replace(/{{name}}/g, contact.name);
-        await whatsappService.sendMessage(contact.phone, personalizedMessage, job.attachment);
+        await sessionManager.sendMessage(job.userCode, contact.phone, personalizedMessage, job.attachment);
         
         results.push({
           contact: contact.name,

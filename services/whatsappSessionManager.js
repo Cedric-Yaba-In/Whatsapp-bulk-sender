@@ -2,6 +2,7 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
 const path = require('path');
 const fs = require('fs');
+const { getPuppeteerConfig } = require('../config/puppeteer');
 
 class WhatsAppSessionManager {
   constructor() {
@@ -56,21 +57,9 @@ class WhatsAppSessionManager {
     console.log(`🚀 Début création session WhatsApp pour ${userCode}`);
     console.log(`📁 Dossier session: ${path.join(this.sessionDir, userCode)}`);
 
+    const puppeteerConfig = await getPuppeteerConfig();
     const clientConfig = {
-      puppeteer: {
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--single-process',
-          '--disable-gpu'
-        ],
-        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined
-      }
+      puppeteer: puppeteerConfig
     };
     
     // Ajouter l'authentification seulement si le dossier existe
