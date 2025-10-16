@@ -15,9 +15,11 @@ class WhatsAppService {
     this.loadingProgress = 5;
     this.loadingMessage = 'Initialisation du client WhatsApp...';
     
+    const puppeteerConfig = await getPuppeteerConfig();
+    
     this.client = new Client({
       authStrategy: new LocalAuth(),
-      puppeteer: getPuppeteerConfig()
+      puppeteer: puppeteerConfig
     });
 
     this.client.on('qr', async (qr) => {

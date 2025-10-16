@@ -1,11 +1,11 @@
-const chromium = require('@sparticuz/chromium');
-
-const getPuppeteerConfig = () => {
-  if (process.env.VERCEL) {
+const getPuppeteerConfig = async () => {
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    const chromium = require('@sparticuz/chromium');
+    
     return {
-      args: chromium.args,
+      args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'],
       defaultViewport: chromium.defaultViewport,
-      executablePath: chromium.executablePath,
+      executablePath: await chromium.executablePath(),
       headless: chromium.headless,
     };
   }
