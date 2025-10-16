@@ -1,5 +1,6 @@
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const QRCode = require('qrcode');
+const { getPuppeteerConfig } = require('../config/puppeteer');
 
 class WhatsAppService {
   constructor() {
@@ -16,10 +17,7 @@ class WhatsAppService {
     
     this.client = new Client({
       authStrategy: new LocalAuth(),
-      puppeteer: {
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-      }
+      puppeteer: getPuppeteerConfig()
     });
 
     this.client.on('qr', async (qr) => {
