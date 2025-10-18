@@ -1,0 +1,9 @@
+version: 0.2
+
+phases:
+  build:
+    commands:
+      - npm ci -f && npm run start
+artifacts:
+  files:
+    - '**/*'
