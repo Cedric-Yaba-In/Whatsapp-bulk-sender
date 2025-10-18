@@ -6,6 +6,7 @@ toastr.options = {
   "timeOut": "3000"
 };
 
+
 // Variables globales
 let currentStep = 0;
 let contacts = [];
