@@ -16,6 +16,9 @@ connectDB();
 
 const app = express();
 
+// Configuration pour reverse proxy
+app.set('trust proxy', true);
+
 // Configuration EJS
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
@@ -30,9 +33,18 @@ app.use(session({
   cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 }
 }));
 
-// Middleware pour capturer l'IP
+// Middleware pour capturer l'IP réelle derrière le proxy
 app.use((req, res, next) => {
-  req.ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || req.socket.remoteAddress || '127.0.0.1';
+  // Avec trust proxy activé, Express gère automatiquement les headers X-Forwarded-*
+  const clientIp = req.ip || 
+                   req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
+                   req.headers['x-real-ip'] || 
+                   req.connection.remoteAddress || 
+                   req.socket.remoteAddress || 
+                   '127.0.0.1';
+  
+  req.clientIp = clientIp;
+  console.log(`🌍 IP client détectée: ${clientIp}`);
   next();
 });
 
@@ -96,24 +108,20 @@ const init = async () => {
 // Démarrer l'initialisation sans bloquer
 init();
 
-if (process.env.NODE_ENV !== 'production') {
-  const PORT = process.env.PORT || 3000;
-  // En local (ex: localhost)
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-    console.log('Routes disponibles:');
-    console.log('- GET /api/status');
-    console.log('- POST /api/reconnect');
-    console.log('- POST /api/disconnect');
-    console.log('- POST /api/upload');
-    console.log('- POST /api/upload-attachment');
-    console.log('- POST /api/send-messages');
-    console.log('- GET /api/template/:format');
-    console.log('- GET /admin (admin: admin/admin123)');
-    console.log('- GET /packs (page publique des packs)');
-  });
-
-} else {
-  // En production (Passenger sur PlanetHoster)
-  module.exports = app;
-}
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🔗 Trust proxy: ${app.get('trust proxy')}`);
+  console.log('Routes disponibles:');
+  console.log('- GET /api/status/:userCode');
+  console.log('- POST /api/reconnect');
+  console.log('- POST /api/disconnect');
+  console.log('- POST /api/init-session');
+  console.log('- POST /api/upload');
+  console.log('- POST /api/upload-attachment');
+  console.log('- POST /api/send-messages');
+  console.log('- GET /api/template/:format');
+  console.log('- GET /admin (admin: admin/admin123)');
+  console.log('- GET /packs (page publique des packs)');
+});

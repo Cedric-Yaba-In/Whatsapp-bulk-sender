@@ -1,9 +1,20 @@
 const express = require('express');
 const router = express.Router();
 
-router.get('/get-client-ip', (req, res) => {
-  const clientIp = req.ip || req.connection.remoteAddress || req.socket.remoteAddress || '127.0.0.1';
-  res.json({ ip: clientIp });
+// Route de debug pour vérifier l'IP détectée
+router.get('/debug-ip', (req, res) => {
+  const ipInfo = {
+    clientIp: req.clientIp,
+    reqIp: req.ip,
+    xForwardedFor: req.headers['x-forwarded-for'],
+    xRealIp: req.headers['x-real-ip'],
+    remoteAddress: req.connection.remoteAddress,
+    socketRemoteAddress: req.socket.remoteAddress,
+    allHeaders: req.headers
+  };
+  
+  console.log('🔍 Debug IP:', ipInfo);
+  res.json(ipInfo);
 });
 
 module.exports = router;

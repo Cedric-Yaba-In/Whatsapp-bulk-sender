@@ -54,27 +54,21 @@ router.post('/verify-user', async (req, res) => {
   const TestAccountService = require('../services/testAccountService');
   
   try {
-    const clientIp = req.ip || req.connection.remoteAddress || req.socket.remoteAddress || '127.0.0.1';
+    const clientIp = req.clientIp || req.ip || '127.0.0.1';
+    console.log(`🔍 Vérification utilisateur ${userCode} depuis IP: ${clientIp}`);
     
-    // Si c'est un code test, utiliser le système par IP
-    if (TestAccountService.isTestCode(userCode.toUpperCase())) {
-      const testAccount = await TestAccountService.getTestAccountByCode(userCode.toUpperCase(), clientIp);
+    // Si c'est le code test, utiliser le système par IP
+    if (userCode.toUpperCase() === 'TEST2024') {
+      console.log(`🧪 Compte test demandé depuis IP: ${clientIp}`);
+      const testAccount = await TestAccountService.getOrCreateTestAccount(clientIp);
+      const userStats = TestAccountService.getTestAccountStats(testAccount);
       
-      if (testAccount) {
-        const userStats = TestAccountService.getTestAccountStats(testAccount);
-        
-        return res.json({
-          valid: true,
-          user: userStats,
-          isTestAccount: true,
-          ipAddress: clientIp
-        });
-      } else {
-        return res.json({ 
-          valid: false, 
-          message: 'Code de test invalide pour cette adresse IP' 
-        });
-      }
+      return res.json({
+        valid: true,
+        user: userStats,
+        isTestAccount: true,
+        ipAddress: clientIp
+      });
     }
     
     let user = await User.findOne({ code: userCode.toUpperCase(), isActive: true }).populate('packId');
@@ -105,7 +99,8 @@ router.get('/user-stats/:userCode', async (req, res) => {
   const TestAccountService = require('../services/testAccountService');
   
   try {
-    const clientIp = req.ip || req.connection.remoteAddress || req.socket.remoteAddress || '127.0.0.1';
+    const clientIp = req.clientIp || req.ip || '127.0.0.1';
+    console.log(`📊 Récupération stats pour ${userCode} depuis IP: ${clientIp}`);
     
     if (userCode.toUpperCase() === 'TEST2024') {
       const testAccount = await TestAccountService.getOrCreateTestAccount(clientIp);

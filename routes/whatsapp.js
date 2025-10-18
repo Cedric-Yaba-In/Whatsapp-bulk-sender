@@ -127,20 +127,16 @@ router.post('/send-messages', authenticateUser, async (req, res) => {
   console.log(`🚀 Démarrage envoi pour ${userCode}: ${contacts.length} contacts`);
   
   try {
-    const clientIp = req.ip || req.connection.remoteAddress || req.socket.remoteAddress || '127.0.0.1';
+    const clientIp = req.clientIp || req.ip || '127.0.0.1';
     let isTestAccount = false;
     let testAccount = null;
     
+    console.log(`🚀 Envoi de messages pour ${userCode} depuis IP: ${clientIp}`);
+    
     // Vérifier si c'est un compte test par IP
-    if (TestAccountService.isTestCode(req.user.code)) {
+    if (req.user.code === 'TEST2024') {
       isTestAccount = true;
-      testAccount = await TestAccountService.getTestAccountByCode(req.user.code, clientIp);
-      
-      if (!testAccount) {
-        return res.status(400).json({ 
-          error: 'Code de test invalide pour cette adresse IP' 
-        });
-      }
+      testAccount = await TestAccountService.getOrCreateTestAccount(clientIp);
       
       // Vérifier la limite pour le compte test
       if (!TestAccountService.canSendMessages(testAccount, contacts.length)) {
