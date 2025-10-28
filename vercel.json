@@ -1,17 +1,12 @@
 {
   "functions": {
     "server.js": {
-      "maxDuration": 60
+      "maxDuration": 60,
+      "memory": 1024
     }
   },
   "env": {
     "VERCEL": "1",
     "PUPPETEER_SKIP_CHROMIUM_DOWNLOAD": "true"
-  },
-  "builds": [
-    {
-      "src": "server.js",
-      "use": "@vercel/node"
-    }
-  ]
+  }
 }
