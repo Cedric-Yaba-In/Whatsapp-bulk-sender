@@ -1,5 +1,5 @@
 const getPuppeteerConfig = async () => {
-  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  // if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.AWS_EXECUTION_ENV) {
     try {
       const chromium = require('@sparticuz/chromium');
       
@@ -26,21 +26,21 @@ const getPuppeteerConfig = async () => {
       console.error('❌ Erreur configuration Chromium:', error);
       throw new Error('Chromium non disponible sur cette plateforme');
     }
-  }
+  // }
   
-  return {
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-accelerated-2d-canvas',
-      '--no-first-run',
-      '--no-zygote',
-      '--single-process',
-      '--disable-gpu'
-    ]
-  };
+  // return {
+  //   headless: true,
+  //   args: [
+  //     '--no-sandbox',
+  //     '--disable-setuid-sandbox',
+  //     '--disable-dev-shm-usage',
+  //     '--disable-accelerated-2d-canvas',
+  //     '--no-first-run',
+  //     '--no-zygote',
+  //     '--single-process',
+  //     '--disable-gpu'
+  //   ]
+  // };
 };
 
 module.exports = { getPuppeteerConfig };
