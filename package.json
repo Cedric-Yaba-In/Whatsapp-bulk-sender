@@ -9,7 +9,7 @@
     "init-packs": "node scripts/init-packs.js"
   },
   "engines": {
-    "node": "18.x"
+    "node": "22.x"
   },
   "dependencies": {
     "@sparticuz/chromium": "^121.0.0",
