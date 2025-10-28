@@ -1,6 +1,6 @@
 {
   "functions": {
-    "server.js": {
+    "/**/*.js": {
       "maxDuration": 60,
       "memory": 1024
     }
